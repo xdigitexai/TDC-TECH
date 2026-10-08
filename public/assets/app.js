@@ -1,6 +1,6 @@
 
 const publicRateCards=['social-ads','music','smm-followers','numbers','verification','press-tier1'];
-const pricingText=value=>'£'+Number(value||0).toFixed(2).replace(/\.00$/,'');
+const pricingText=value=>'€'+Number(value||0).toFixed(2).replace(/\.00$/,'');
 function siteImage(url,alt,cls){const img=document.createElement('img');img.src=url;img.alt=alt;img.className=cls||'';img.loading='lazy';img.referrerPolicy='no-referrer';return img;}
 function drawSiteItems(items){
  const teams=document.getElementById('site-team-grid');if(teams&&items.leader?.length){teams.replaceChildren();items.leader.forEach(x=>{const card=document.createElement('article');card.className='about-team-card';const avatar=document.createElement('div');avatar.className='about-team-avatar';if(x.image_url)avatar.append(siteImage(x.image_url,x.title,''));else avatar.textContent=x.icon_text||'TDC';card.append(avatar);const name=document.createElement('p');name.className='about-team-name';name.textContent=x.title;const role=document.createElement('p');role.className='about-team-role';role.textContent=x.subtitle;const bio=document.createElement('p');bio.className='about-team-bio';bio.textContent=x.body||'';card.append(name,role,bio);teams.append(card);});}
@@ -30,11 +30,9 @@ async function loadPublicSiteContent(){
 
 async function loadAccountState(){
   const r=await fetch('/api/me.php',{credentials:'same-origin',cache:'no-store'});const data=await r.json();
-  if(!data.authenticated){location.href='/login.php';return null;}
+  if(!data.authenticated){location.href='/login';return null;}
   currentUser=data.user.name;walletBalance=Number(data.balance||0);updateWalletDisplay();
   if(data.user.role==='admin'){location.href='/admin/';return null;}
-  const head=document.getElementById('dash-header');
-  if(head&&!document.getElementById('logout-button')){const b=document.createElement('button');b.id='logout-button';b.className='btn-secondary';b.textContent='Sign out';b.onclick=async()=>{try{await apiPost('/api/auth.php',{action:'logout'});}finally{location.href='/';}};head.appendChild(b);}
   await loadAccountActivity();return data;
 }
 function safeNode(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;n.textContent=text;return n;}
@@ -45,15 +43,15 @@ async function loadAccountActivity(){
     document.querySelectorAll('#view-dashboard .dsp-row').forEach(n=>n.remove());
     const lists=document.querySelectorAll('#view-dashboard .txn-list');
     lists.forEach(n=>{if(!n.children.length)n.append(safeNode('p','empty-state','No transactions yet.'));});
-    if(lists[0]&&data.transactions?.length){lists[0].replaceChildren();data.transactions.slice(0,6).forEach(t=>{const row=safeNode('div','txn-row','');const left=safeNode('div','txn-left','');left.append(safeNode('div','txn-ic',t.kind==='credit'?'£':'•'));const info=safeNode('div','','');info.append(safeNode('p','txn-name',t.note||t.kind));info.append(safeNode('p','txn-meta',new Date(t.created_at+'Z').toLocaleString()));left.append(info);const amt=Number(t.amount);row.append(left,safeNode('span','txn-amt '+(amt>=0?'inc':'out'),(amt>=0?'+':'')+'£'+Math.abs(amt).toFixed(2)+' · '+t.status));lists[0].append(row);});}
-    const box=document.getElementById('account-orders');if(box){box.replaceChildren();if(!data.orders?.length)box.append(safeNode('p','empty-state','No orders yet.'));else data.orders.forEach(o=>{const card=safeNode('article','order-card','');card.append(safeNode('strong','',`#${o.id} · ${o.service} · £${Number(o.amount).toFixed(2)}`));card.append(safeNode('p','',`${o.description} · ${o.status} · ${new Date(o.created_at+'Z').toLocaleString()}`));if(o.admin_note)card.append(safeNode('p','order-note',o.admin_note));box.append(card);});}
+    if(lists[0]&&data.transactions?.length){lists[0].replaceChildren();data.transactions.slice(0,6).forEach(t=>{const row=safeNode('div','txn-row','');const left=safeNode('div','txn-left','');left.append(safeNode('div','txn-ic',t.kind==='credit'?'€':'•'));const info=safeNode('div','','');info.append(safeNode('p','txn-name',t.note||t.kind));info.append(safeNode('p','txn-meta',new Date(t.created_at+'Z').toLocaleString()));left.append(info);const amt=Number(t.amount);row.append(left,safeNode('span','txn-amt '+(amt>=0?'inc':'out'),(amt>=0?'+':'')+'€'+Math.abs(amt).toFixed(2)+' · '+t.status));lists[0].append(row);});}
+    const box=document.getElementById('account-orders');if(box){box.replaceChildren();if(!data.orders?.length)box.append(safeNode('p','empty-state','No orders yet.'));else data.orders.forEach(o=>{const card=safeNode('article','order-card','');card.append(safeNode('strong','',`#${o.id} · ${o.service} · €${Number(o.amount).toFixed(2)}`));card.append(safeNode('p','',`${o.description} · ${o.status} · ${new Date(o.created_at+'Z').toLocaleString()}`));if(o.admin_note)card.append(safeNode('p','order-note',o.admin_note));box.append(card);});}
     const proxy=[...(data.orders||[])].find(o=>String(o.service).toLowerCase().includes('proxy')&&o.admin_note);if(proxy){const out=document.getElementById('proxy-cred-output');if(out)out.textContent=proxy.admin_note;}
     document.querySelectorAll('#view-dashboard .stat-card-val').forEach(n=>{if(n.id!=='home-wallet')n.textContent='0';});
-    document.querySelectorAll('#view-dashboard .metric-val').forEach(n=>n.textContent=n.textContent.includes('£')?'£0.00':'0');
+    document.querySelectorAll('#view-dashboard .metric-val').forEach(n=>n.textContent=n.textContent.includes('€')?'€0.00':'0');
     document.querySelectorAll('#view-dashboard .metric-sub').forEach(n=>n.textContent='No account activity yet');
   }catch(_e){}
 }
-const routes={'home':'/dashboard.php','social-ads':'/services/social-ads.php','music':'/services/music.php','verification':'/services/verification.php','web-dev':'/services/web-dev.php','account-mgmt':'/services/account-mgmt.php','press':'/services/press.php','smm':'/services/smm.php','numbers':'/services/numbers.php','bots':'/services/bots.php','proxies':'/services/proxies.php'};
+const routes={'home':'/dashboard','social-ads':'/services/social-ads','music':'/services/music','verification':'/services/verification','web-dev':'/services/web-dev','account-mgmt':'/services/account-mgmt','press':'/services/press','smm':'/services/smm','numbers':'/services/numbers','bots':'/services/bots','proxies':'/services/proxies','cart':'/cart','chat':'/support','profile':'/profile'};
 if(typeof window.navTo==='function'){
   const originalNavTo=window.navTo;
   window.navTo=function(page){originalNavTo(page);const route=routes[page];if(route&&location.pathname!==route)history.pushState({page},'',route);};
@@ -62,9 +60,9 @@ window.addEventListener('popstate',()=>{const page=Object.keys(routes).find(k=>r
 window.addEventListener('DOMContentLoaded',async()=>{
   loadPublicSiteContent();
   const path=location.pathname;
-  if(path==='/dashboard.php'||path.startsWith('/services/')){
+  if(document.body.dataset.page==='dashboard'||document.body.dataset.page==='service'||path==='/dashboard'||path.startsWith('/services/')){
     const data=await loadAccountState();if(!data)return;
     const dash=document.getElementById('view-dashboard');if(dash){document.getElementById('view-landing')?.remove();dash.style.display='flex';dash.classList.add('active');document.getElementById('chat-fab').style.display='flex';const fn=document.getElementById('float-nav');if(fn)fn.style.display='flex';}
-    const target=document.body.dataset.service||'home';if(typeof navTo==='function')navTo(target);
+    const target=Object.keys(routes).find(k=>routes[k]===location.pathname)||document.body.dataset.service||'home';if(typeof navTo==='function')navTo(target);
   }
 });

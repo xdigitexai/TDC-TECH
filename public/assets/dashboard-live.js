@@ -1,0 +1,39 @@
+'use strict';
+let smmCatalog=[],smmRequestId=null,smmRequestFingerprint=null,smmSending=false;
+function smmCurrent(){return smmCatalog.find(s=>s.slug===document.getElementById('smm-service-type')?.value);}
+async function loadSmmCatalog(){
+ try{const r=await fetch('/api/smm-catalog.php',{cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error||'Catalog unavailable');smmCatalog=d.services||[];const cat=document.getElementById('smm-category');if(!cat)return;cat.replaceChildren();const categories=[...new Set(smmCatalog.map(s=>s.category))];for(const c of categories){const o=new Option(c,c);cat.add(o);}filterSmmServices();}
+ catch(e){const sel=document.getElementById('smm-service-type');if(sel)sel.replaceChildren(new Option(e.message,''));document.getElementById('smm-submit').disabled=true;}
+}
+function filterSmmServices(){const cat=document.getElementById('smm-category').value,needle=(document.getElementById('smm-search')?.value||'').trim().toLowerCase();const select=document.getElementById('smm-service-type');select.replaceChildren();for(const s of smmCatalog.filter(x=>needle?(x.name+' '+x.category).toLowerCase().includes(needle):x.category===cat))select.add(new Option(`${s.name} · €${Number(s.price).toFixed(2)}${s.pricing_mode==='per_1000'?'/1,000':''}`,s.slug));if(!select.options.length)select.add(new Option('No services available',''));chooseSmmService();}
+window.chooseSmmService=function(){const s=smmCurrent(),qty=document.getElementById('smm-qty'),comments=document.getElementById('smm-comments-wrap');document.getElementById('smm-submit').disabled=!s;if(!s){calcSmmPrice();return;}qty.min=s.min_quantity;qty.max=s.max_quantity;qty.step=1;qty.value=s.min_quantity;qty.disabled=s.service_type.includes('Comments')||s.service_type.includes('Package');comments.hidden=!s.service_type.includes('Comments');document.getElementById('smm-delivery-info').textContent=`${s.service_type} · Quantity ${s.min_quantity}–${s.max_quantity}. ${Number(s.refill)?'Refill supported.':'No refill available.'} ${Number(s.cancel)?'Cancellation supported.':'Cancellation unavailable.'} Delivery is confirmed through order status.`;calcSmmPrice();};
+window.calcSmmPrice=function(){const s=smmCurrent();let qty=Number(document.getElementById('smm-qty')?.value||0);if(s?.service_type.includes('Comments'))qty=document.getElementById('smm-comments').value.split(/\r?\n/).filter(x=>x.trim()).length;if(s?.service_type.includes('Package'))qty=Number(s.min_quantity);const total=s?(s.pricing_mode==='fixed'?Number(s.price):Math.ceil(qty/1000*Number(s.price)*100-1e-7)/100):0;for(const id of ['smm-price-live','smm-total-display','smm-btn-price']){const n=document.getElementById(id);if(n)n.textContent='€'+total.toFixed(2);}const display=document.getElementById('smm-qty-display');if(display)display.textContent=qty.toLocaleString();const note=document.getElementById('smm-calc-note');if(note)note.textContent=s?`${qty.toLocaleString()} · ${s.name}`:'No services available. Ask support to check the catalog.';};
+window.setSmmQty=function(v){const q=document.getElementById('smm-qty');q.value=Math.max(Number(q.min),Math.min(Number(q.max),v));calcSmmPrice();};
+window.smmCheckout=async function(){
+ if(smmSending)return;const s=smmCurrent();if(!s)return showToast('Select an available service.','error');
+ const details={link:document.getElementById('smm-link').value.trim(),quantity:Number(document.getElementById('smm-qty').value),comments:document.getElementById('smm-comments').value};
+ const fingerprint=JSON.stringify([s.slug,details]);if(fingerprint!==smmRequestFingerprint){smmRequestId=crypto.randomUUID();smmRequestFingerprint=fingerprint;}
+ const payload={service_slug:s.slug,details,request_id:smmRequestId};const b=document.getElementById('smm-submit');smmSending=true;b.disabled=true;
+ try{const quote=await apiPost('/api/orders.php',{...payload,action:'quote'});if(!confirm(`Confirm €${Number(quote.amount).toFixed(2)} for ${s.name}?`))return;const r=await apiPost('/api/orders.php',payload);showToast(`Order #${r.order_id} queued. Track its progress in order history.`,'success');smmRequestId=null;smmRequestFingerprint=null;await loadAccountState();await liveAccountDetails();}
+ catch(e){showToast(e.message,'error');}finally{smmSending=false;b.disabled=false;}
+};
+window.accountLogout=async function(){try{await apiPost('/api/auth.php',{action:'logout'});}finally{location.href='/login';}};
+async function liveAccountDetails(){
+ const [me,activity]=await Promise.all([fetch('/api/me.php',{cache:'no-store'}).then(r=>r.json()),fetch('/api/orders.php',{cache:'no-store'}).then(r=>r.json())]);if(!me.authenticated)return;
+ currentUser=me.user.name;walletBalance=Number(me.balance);updateWalletDisplay();document.querySelectorAll('.wallet-val').forEach(n=>n.textContent='€'+walletBalance.toFixed(2));document.getElementById('header-avatar').textContent=window.tdcInitials?window.tdcInitials(currentUser):currentUser.slice(0,1).toUpperCase();
+ const orders=activity.orders||[],tx=activity.transactions||[];const chips=document.querySelectorAll('.money-chip');
+ const active=Number(activity.totals?.active||0),complete=Number(activity.totals?.completed||0);
+ const spent=Number(activity.totals?.spent||0);
+ if(chips[1]){chips[1].querySelector('b').textContent=active;chips[1].querySelector('small').textContent='Pending or processing';}if(chips[2])chips[2].querySelector('b').textContent='€'+spent.toFixed(2);if(chips[3])chips[3].querySelector('b').textContent=complete;
+ let box=document.getElementById('account-orders');if(!box){box=document.createElement('div');box.id='account-orders';document.getElementById('page-home').append(box);}box.replaceChildren(safeNode('h3','','Your orders'));
+ for(const o of orders){const card=safeNode('article','order-card','');card.append(safeNode('strong','',`#${o.id} · ${o.service} · €${Number(o.amount).toFixed(2)}`));card.append(safeNode('p','',`${o.description} · ${o.provider_status||o.status}${o.remains!==null&&o.remains!==undefined?' · '+o.remains+' remaining':''}`));if(o.admin_note)card.append(safeNode('p','',o.admin_note));box.append(card);}if(!orders.length)box.append(safeNode('p','empty-state','No orders yet.'));
+ for(const [id,value] of [['profile-wallet','€'+walletBalance.toFixed(2)],['profile-orders',activity.totals?.total||0],['profile-active',activity.totals?.active||0]]){const n=document.getElementById(id);if(n)n.textContent=value;}
+ const history=document.querySelector('#smm-tab-1 .txn-list');if(history){history.replaceChildren();for(const o of orders.filter(x=>x.service_slug?.startsWith('smm-'))){history.append(safeNode('p','order-card',`#${o.id} · ${o.service} · ${o.provider_status||o.status} · €${Number(o.amount).toFixed(2)}`));}if(!history.children.length)history.append(safeNode('p','empty-state','No SMM orders yet.'));}
+ document.querySelectorAll('.svc-page[data-service-page-panel]').forEach(page=>{const slug=page.dataset.servicePagePanel;const matching=orders.filter(o=>o.page_slug===slug);const vals=page.querySelectorAll('.metric-val');if(vals[0])vals[0].textContent='€'+matching.filter(o=>!['rejected','cancelled'].includes(o.status)).reduce((n,o)=>n+Number(o.amount),0).toFixed(2);if(vals[1])vals[1].textContent=matching.length;if(vals[2])vals[2].textContent='€0.00';});
+}
+window.addEventListener('DOMContentLoaded',async()=>{
+ document.getElementById('app-gate')?.remove();if(!isAppMode())document.getElementById('install-banner')?.classList.add('show');
+ // These prototype shortcuts must not pretend to create purchases, credentials or chat messages.
+ window.generateProxyCreds=()=>showToast('Credentials are provided in the order after fulfillment.','info');
+ await loadSmmCatalog();await liveAccountDetails();setInterval(()=>liveAccountDetails().catch(()=>{}),30000);
+});

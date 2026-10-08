@@ -1,0 +1,11 @@
+ALTER TABLE gateway_fx_rates ADD COLUMN IF NOT EXISTS units_per_eur DECIMAL(18,6) NOT NULL DEFAULT 0;
+ALTER TABLE site_content_items MODIFY item_type ENUM('partner','brand','leader','testimonial','sponsor','collaborator','social','leaderboard') NOT NULL;
+UPDATE gateway_fx_rates SET units_per_eur=146.903162,active=1 WHERE currency='KES';
+UPDATE gateway_fx_rates SET units_per_eur=1.12519,active=1 WHERE currency='USD';
+UPDATE gateway_fx_rates SET units_per_eur=2599.353383,active=1 WHERE currency='CDF';
+UPDATE gateway_fx_rates SET units_per_eur=4447.306316,active=1 WHERE currency='UGX';
+UPDATE gateway_fx_rates SET units_per_eur=655.957,active=1 WHERE currency='XOF';
+UPDATE gateway_fx_rates SET units_per_eur=655.957,active=1 WHERE currency='XAF';
+UPDATE gateway_fx_rates SET units_per_eur=1677.122227,active=1 WHERE currency='RWF';
+UPDATE gateway_fx_rates SET units_per_eur=22.461064,active=1 WHERE currency='ZMW';
+UPDATE gateway_fx_rates SET units_per_eur=27.740732,active=1 WHERE currency='SLE';

@@ -19,6 +19,7 @@ if(($d['action']??'')==='page_update'){
  audit('service_page.updated',(int)$admin['id'],['slug'=>$slug]);json_out(['ok'=>true]);
 }
 if(($d['action']??'')==='order_update'){
+ $guard=$pdo->prepare('SELECT order_id FROM smm_jobs WHERE order_id=?');$guard->execute([(int)($d['id']??0)]);if($guard->fetch())json_out(['error'=>'Provider orders use automatic delivery tracking.'],409);
  $id=(int)($d['id']??0);$status=(string)($d['status']??'');if(!in_array($status,['pending','processing','completed','rejected','cancelled'],true))json_out(['error'=>'Invalid order status.'],422);
  $q=$pdo->prepare('SELECT o.id,o.user_id,o.amount,o.status,u.email,u.name FROM orders o JOIN users u ON u.id=o.user_id WHERE o.id=? AND o.service_id IN (SELECT service_id FROM service_page_services WHERE page_slug=?)');$q->execute([$id,$slug]);$o=$q->fetch();if(!$o)json_out(['error'=>'Order is not part of this service.'],404);
  if(in_array($o['status'],['rejected','cancelled'],true)&&$status!==$o['status'])json_out(['error'=>'Rejected or cancelled requests are final.'],409);
@@ -33,7 +34,7 @@ Your order #".$id.' is now '.$status.'. Sign in to your TDC Tech dashboard to vi
 }
 if(($d['action']??'')==='service_update'){
  $id=(int)($d['id']??0);$price=round((float)($d['price']??-1),2);$active=($d['active']??false)===true;
- if($price<0||$price>100000)json_out(['error'=>'Price must be between £0 and £100,000.'],422);
+ if($price<0||$price>100000)json_out(['error'=>'Price must be between €0 and €100,000.'],422);
  $q=$pdo->prepare('UPDATE services SET price=?,active=? WHERE id=? AND id IN (SELECT service_id FROM service_page_services WHERE page_slug=?)');$q->execute([$price,$active?1:0,$id,$slug]);if(!$q->rowCount()){$q=$pdo->prepare('SELECT id FROM services WHERE id=? AND id IN (SELECT service_id FROM service_page_services WHERE page_slug=?)');$q->execute([$id,$slug]);if(!$q->fetch())json_out(['error'=>'Catalog item does not belong to this page.'],404);}
  audit('service.price_updated',(int)$admin['id'],['service_slug'=>$slug,'service_id'=>$id,'price'=>$price,'active'=>$active]);json_out(['ok'=>true]);
 }

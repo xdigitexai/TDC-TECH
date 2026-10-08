@@ -1,0 +1,13 @@
+{
+  "name": "WanTam",
+  "symbol": "WANTAM",
+  "description": "WanTam is a community meme token on Solana built around the slogan \"Wantam. Must Go.\" A fun culture-driven token for the Wantams community.",
+  "image": "https://tdctech.org/wantam/wantam-logo.png",
+  "external_url": "https://wantam.xyz",
+  "attributes": [
+    {
+      "trait_type": "Slogan",
+      "value": "Wantam. Must Go."
+    }
+  ]
+}

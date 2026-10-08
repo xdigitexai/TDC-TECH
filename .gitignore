@@ -2,3 +2,17 @@ config.local.php
 .env
 *.log
 /vendor/
+node_modules/
+.next/
+dist/
+build/
+.env.*
+*.env
+*.pem
+*.key
+id_rsa*
+*.p12
+*.bak
+*.bak.*
+*.bak-*
+config.local.php*
