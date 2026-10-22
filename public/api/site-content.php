@@ -1,5 +1,5 @@
 <?php
-require dirname(__DIR__,2).'/app/bootstrap.php';
+require_once dirname(__DIR__,2).'/app/bootstrap.php';
 require_method('GET');
 $settings=[];$q=db()->query("SELECT setting_key,setting_value FROM site_settings WHERE setting_key IN ('meta_title','meta_description','brand_name','logo_url','favicon_url','home_title','home_subtitle','ads_hashtags','footer_pricing_text','footer_partnerships')");
 foreach($q->fetchAll() as $row)$settings[$row['setting_key']]=$row['setting_value'];

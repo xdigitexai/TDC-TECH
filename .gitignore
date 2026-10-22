@@ -16,3 +16,12 @@ id_rsa*
 *.bak.*
 *.bak-*
 config.local.php*
+
+# runtime uploads / storage (not code)
+/public/uploads/**
+!/public/uploads/content/.gitkeep
+!/public/uploads/content/.htaccess
+/storage/documents/
+/storage/music/
+/storage/*.lock
+/storage/mail-delivery.disabled*

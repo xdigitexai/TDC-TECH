@@ -1,6 +1,6 @@
 <?php
 require dirname(__DIR__,3).'/app/payment_gateway.php';
-$u=require_user();require_method('POST');require_csrf();$d=json_body();
+$u=require_user();if(pay_config('TDC_PAY_ENABLED')==='0')json_out(['error'=>'Deposits are temporarily disabled.'],503);require_method('POST');require_csrf();$d=json_body();
 $gbp=round((float)($d['amount']??0),2);if($gbp<5||$gbp>10000)json_out(['error'=>'Top-up amount must be between €5 and €10,000.'],422);
 $gateway=(string)($d['gateway']??'');$allowed=['card','mobile'];if(!in_array($gateway,$allowed,true))json_out(['error'=>'Choose a supported payment method.'],422);
 $phone=preg_replace('/[\s()-]/','',(string)($d['phone']??''));if(str_starts_with($phone,'00'))$phone='+'.substr($phone,2);$currency=strtoupper((string)($d['currency']??''));if($gateway==='card')$currency='KES';

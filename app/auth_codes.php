@@ -1,17 +1,5 @@
 <?php
-/**
- * Email confirmation codes for sign-in and registration.
- *
- * A code is generated, stored only as a SHA-256 hash, mailed through the
- * existing notification outbox, and is single-use with a short expiry and a
- * bounded number of attempts.
- *
- * Everything here is gated on smtp_configured() by the caller. That is
- * deliberate: a mandatory email step on a mail server that cannot deliver locks
- * out every account, including the administrator. When mail is unavailable the
- * step is skipped and password authentication alone applies, so this can never
- * become a lockout.
- */
+/** Registration OTP: hashed, expiring, bounded attempts and single use. Login sends a notification. */
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/notifications.php';
@@ -23,8 +11,7 @@ const TDC_CODE_RESEND_AFTER_SECONDS = 45;
 /** True when the code step should be enforced (i.e. mail can actually be delivered). */
 function email_code_step_enabled(): bool
 {
-    // Email verification is disabled at the site owner's request.
-    return false;
+    return true;
 }
 
 /**
@@ -69,9 +56,9 @@ function email_domain_accepts_mail(string $email): bool
 function email_code_applies_to(string $role, string $email): bool
 {
     // All accounts, including administrators, must complete the emailed code
-    // step. Mailgun handles delivery to arbitrary domains, so there is no
+    // step. Xdigitex SMTP handles delivery to arbitrary domains, so there is no
     // need for an MX-based exemption that could be abused as a bypass.
-    return email_code_step_enabled();
+    return false; // Login uses password plus a notification; registration requires OTP.
 }
 
 function email_code_is_six_digits(string $code): bool

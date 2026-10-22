@@ -1,5 +1,5 @@
 <?php
-require dirname(__DIR__,2).'/app/bootstrap.php';$u=require_user();$pdo=db();
+require_once dirname(__DIR__,2).'/app/bootstrap.php';$u=require_user();$pdo=db();
 if($_SERVER['REQUEST_METHOD']==='GET'){$q=$pdo->prepare('SELECT bio,avatar_url,timezone,theme FROM customer_profiles WHERE user_id=?');$q->execute([$u['id']]);json_out(['user'=>$u,'profile'=>$q->fetch()?:['bio'=>'','avatar_url'=>'','timezone'=>'Africa/Nairobi','theme'=>'dark'],'csrf'=>csrf_token()]);}
 require_method('POST');require_csrf();$d=json_body();$action=$d['action']??'';
 if(in_array($action,['name','profile'],true)){

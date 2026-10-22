@@ -1,5 +1,5 @@
 <?php
-require dirname(__DIR__,2).'/app/bootstrap.php';
+require_once dirname(__DIR__,2).'/app/bootstrap.php';
 require_admin();require_method('POST');require_csrf();
 $file=$_FILES['image']??null;if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK)json_out(['error'=>'Choose an image to upload.'],422);
 if((int)$file['size']<1||(int)$file['size']>5*1024*1024||!is_uploaded_file($file['tmp_name']))json_out(['error'=>'Image uploads must be 5 MB or smaller.'],422);

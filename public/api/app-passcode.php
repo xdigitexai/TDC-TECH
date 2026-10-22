@@ -1,5 +1,6 @@
 <?php
-require dirname(__DIR__,2).'/app/bootstrap.php';
+require_once dirname(__DIR__,2).'/app/notifications.php';
+require_once dirname(__DIR__,2).'/app/bootstrap.php';
 function app_cookie(string $token,int $expires):void{setcookie('tdc_device',$token,['expires'=>$expires,'path'=>'/','secure'=>true,'httponly'=>true,'samesite'=>'Strict']);}
 $token=(string)($_COOKIE['tdc_device']??'');$hash=hash('sha256',$token);$q=db()->prepare('SELECT d.*,u.status,u.role,u.password_hash FROM app_devices d JOIN users u ON u.id=d.user_id WHERE d.token_hash=? AND d.expires_at>UTC_TIMESTAMP()');$q->execute([$hash]);$device=$q->fetch();$valid=$device&&$device['status']==='active'&&$device['role']!=='admin'&&hash_equals($device['password_stamp'],hash('sha256',$device['password_hash']));
 if($_SERVER['REQUEST_METHOD']==='GET')json_out(['enabled'=>(bool)$valid,'csrf'=>csrf_token()]);
@@ -10,7 +11,7 @@ if($action==='unlock'){
  $pdo=db();$pdo->beginTransaction();try{$q=$pdo->prepare('SELECT * FROM app_devices WHERE token_hash=? AND expires_at>UTC_TIMESTAMP() FOR UPDATE');$q->execute([$hash]);$fresh=$q->fetch();if(!$fresh){$pdo->rollBack();json_out(['error'=>'Device access expired. Sign in again.'],401);}if($fresh['locked_until']&&strtotime($fresh['locked_until'].' UTC')>time()){$pdo->rollBack();json_out(['error'=>'Too many attempts. Wait 15 minutes or sign in with your password.'],429);}
  $attempts=$fresh['locked_until']?0:(int)$fresh['attempts'];$pin=(string)($data['pin']??'');if(!preg_match('/^\d{4,8}$/',$pin)||!password_verify($pin,$fresh['pin_hash'])){$attempts++;$pdo->prepare('UPDATE app_devices SET attempts=?,locked_until=IF(? >=5,UTC_TIMESTAMP()+INTERVAL 15 MINUTE,NULL) WHERE token_hash=?')->execute([$attempts,$attempts,$hash]);$pdo->commit();json_out(['error'=>$attempts>=5?'Too many attempts. Wait 15 minutes or sign in with your password.':'Incorrect passcode.'], $attempts>=5?429:401);}
  $pdo->prepare('UPDATE app_devices SET attempts=0,locked_until=NULL WHERE token_hash=?')->execute([$hash]);$pdo->commit();}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
- session_regenerate_id(true);$_SESSION['uid']=(int)$fresh['user_id'];$_SESSION['csrf']=bin2hex(random_bytes(32));audit('app.passcode_unlocked',(int)$fresh['user_id']);json_out(['ok'=>true,'redirect'=>'/dashboard']);
+ session_regenerate_id(true);$_SESSION['uid']=(int)$fresh['user_id'];$_SESSION['csrf']=bin2hex(random_bytes(32));audit('app.passcode_unlocked',(int)$fresh['user_id']);notify_successful_login((int)$fresh['user_id']);json_out(['ok'=>true,'redirect'=>'/dashboard']);
 }
 $u=require_user();if($u['role']==='admin')json_out(['error'=>'Device passcodes are for customer accounts.'],403);
 if($action==='disable'){db()->prepare('DELETE FROM app_devices WHERE token_hash=? AND user_id=?')->execute([$hash,$u['id']]);app_cookie('',time()-3600);json_out(['ok'=>true]);}

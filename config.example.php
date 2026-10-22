@@ -25,3 +25,7 @@ define('TDC_SMTP_USER', '');
 define('TDC_SMTP_PASS', '');
 define('TDC_SMTP_FROM', '');
 define('TDC_SMTP_FROM_NAME', 'TDC Tech');
+
+// Google OAuth ("Sign in with Google"). Fill these to enable the Google button.
+define('TDC_GOOGLE_CLIENT_ID', '');
+define('TDC_GOOGLE_CLIENT_SECRET', '');

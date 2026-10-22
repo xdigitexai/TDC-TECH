@@ -1,0 +1,63 @@
+<?php
+require_once dirname(__DIR__,2).'/app/bootstrap.php';$u=require_user();$admin=$u['role']==='admin';$pdo=db();
+function royalty_balance(int $uid):float{$q=db()->prepare('SELECT COALESCE(SUM(amount),0) FROM royalty_ledger WHERE user_id=?');$q->execute([$uid]);return (float)$q->fetchColumn();}
+function release_artwork_id(PDO $pdo,int $orderId):string{$q=$pdo->prepare("SELECT id FROM customer_media WHERE order_id=? AND kind='artwork' ORDER BY created_at LIMIT 1");$q->execute([$orderId]);return (string)($q->fetchColumn()?:'');}
+function release_details(?string $json):array{$d=json_decode((string)$json,true);return is_array($d)?$d:[];}
+function recompute_artist_report(PDO $pdo,int $uid):void{
+ $pdo->prepare("INSERT INTO artist_reports(user_id,tracks,streams,earnings,dsp_json) SELECT ?,COUNT(*),COALESCE(SUM(r.streams),0),COALESCE(SUM(r.revenue),0),'[]' FROM orders o JOIN services s ON s.id=o.service_id LEFT JOIN music_release_reports r ON r.order_id=o.id WHERE o.user_id=? AND s.slug='music' ON DUPLICATE KEY UPDATE tracks=VALUES(tracks),streams=VALUES(streams),earnings=VALUES(earnings)")->execute([$uid,$uid]);
+}
+function admin_releases(PDO $pdo):array{
+ $rows=$pdo->query("SELECT o.id,o.user_id,o.description,o.details,o.status,o.amount,o.created_at,u.name client,u.email,COALESCE(r.streams,0) streams,COALESCE(r.playlists,0) playlists,COALESCE(r.timeline,'') timeline,COALESCE(r.dsp_json,'[]') dsp_json,COALESCE(r.revenue,0) revenue,COALESCE(r.release_status,'pending') release_status,r.updated_at report_updated_at FROM orders o JOIN services s ON s.id=o.service_id JOIN users u ON u.id=o.user_id LEFT JOIN music_release_reports r ON r.order_id=o.id WHERE s.slug='music' ORDER BY o.id DESC")->fetchAll();
+ foreach($rows as &$row){$row['artwork_id']=release_artwork_id($pdo,(int)$row['id']);$row['details']=release_details($row['details']);}unset($row);
+ return $rows;
+}
+if($_SERVER['REQUEST_METHOD']==='GET'){
+ $uid=$admin?(int)($_GET['user']??$u['id']):(int)$u['id'];
+ $q=$pdo->prepare('SELECT * FROM artist_reports WHERE user_id=?');$q->execute([$uid]);$report=$q->fetch()?:['tracks'=>0,'streams'=>0,'earnings'=>0,'dsp_json'=>'{}'];
+ $q=$pdo->prepare('SELECT w.id,w.user_id,w.amount,w.method,w.beneficiary,w.payout_details,w.email payout_email,w.proof_media_id,w.status,w.payment_reference,w.created_at,u.name,u.email FROM royalty_withdrawals w JOIN users u ON u.id=w.user_id'.($admin?'':' WHERE w.user_id=?').' ORDER BY w.id DESC LIMIT 250');$q->execute($admin?[]:[$uid]);$withdraw=$q->fetchAll();foreach($withdraw as &$w)$w['payout_details']=decrypt_private_note($w['payout_details']);unset($w);
+ $q=$pdo->prepare("SELECT o.id,o.description,o.details,o.status,o.amount,o.created_at,COALESCE(r.streams,0) streams,COALESCE(r.playlists,0) playlists,COALESCE(r.timeline,'') timeline,COALESCE(r.dsp_json,'[]') dsp_json,COALESCE(r.revenue,0) revenue,COALESCE(r.release_status,'pending') release_status FROM orders o JOIN services s ON s.id=o.service_id LEFT JOIN music_release_reports r ON r.order_id=o.id WHERE o.user_id=? AND s.slug='music' ORDER BY o.id DESC");$q->execute([$uid]);$releases=$q->fetchAll();
+ foreach($releases as &$rel){$rel['artwork_id']=release_artwork_id($pdo,(int)$rel['id']);}unset($rel);
+ $releases_admin=$admin?admin_releases($pdo):[];
+ $artists=$admin?$pdo->query("SELECT u.id,u.name,u.email,COALESCE(r.tracks,0) tracks,COALESCE(r.streams,0) streams,COALESCE(r.earnings,0) earnings,r.dsp_json,(SELECT COALESCE(SUM(l.amount),0) FROM royalty_ledger l WHERE l.user_id=u.id) available FROM users u LEFT JOIN artist_reports r ON r.user_id=u.id WHERE u.role='customer' ORDER BY u.name")->fetchAll():[];
+ json_out(['report'=>$report,'available'=>royalty_balance($uid),'withdrawals'=>$withdraw,'releases'=>$releases,'releases_admin'=>$releases_admin,'artists'=>$artists,'csrf'=>csrf_token()]);
+}
+require_method('POST');require_csrf();$d=json_body();$action=(string)($d['action']??'');
+if($action==='report'){
+ if(!$admin)json_out(['error'=>'Admin access required.'],403);$uid=(int)($d['user_id']??0);$earn=round((float)($d['earnings']??-1),2);$balance=round((float)($d['available']??-1),2);$tracks=filter_var($d['tracks']??null,FILTER_VALIDATE_INT);$streams=filter_var($d['streams']??null,FILTER_VALIDATE_INT);$dsp=$d['dsp']??[];
+ if($earn<0||$balance<0||$earn>10000000||$balance>10000000||$tracks===false||$tracks<0||$streams===false||$streams<0||!is_array($dsp)||strlen(json_encode($dsp))>10000)json_out(['error'=>'Enter nonnegative report amounts and valid DSP data.'],422);
+ $pdo->beginTransaction();try{$q=$pdo->prepare("SELECT id FROM users WHERE id=? AND role='customer' FOR UPDATE");$q->execute([$uid]);if(!$q->fetch()){$pdo->rollBack();json_out(['error'=>'Customer not found.'],404);}$old=royalty_balance($uid);$pdo->prepare('INSERT INTO artist_reports(user_id,tracks,streams,earnings,dsp_json) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE tracks=VALUES(tracks),streams=VALUES(streams),earnings=VALUES(earnings),dsp_json=VALUES(dsp_json)')->execute([$uid,$tracks,$streams,$earn,json_encode($dsp)]);if(abs($balance-$old)>.001)$pdo->prepare('INSERT INTO royalty_ledger(user_id,amount,reference,note) VALUES(?,?,?,?)')->execute([$uid,round($balance-$old,2),'admin:'.bin2hex(random_bytes(16)),text_cut((string)($d['reason']??'Royalty report correction'),0,255)]);$pdo->commit();audit('royalty.report_saved',(int)$u['id'],['user_id'=>$uid,'previous_available'=>$old,'available'=>$balance]);json_out(['ok'=>true]);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+}
+if($action==='release_report'){
+ if(!$admin)json_out(['error'=>'Admin access required.'],403);$id=(int)($d['order_id']??0);$q=$pdo->prepare("SELECT o.id,o.user_id FROM orders o JOIN services s ON s.id=o.service_id WHERE o.id=? AND s.slug='music'");$q->execute([$id]);$release=$q->fetch();if(!$release)json_out(['error'=>'Music release not found.'],404);
+ $q=$pdo->prepare('SELECT streams,playlists,timeline,dsp_json,revenue,release_status FROM music_release_reports WHERE order_id=?');$q->execute([$id]);$current=$q->fetch()?:['streams'=>0,'playlists'=>0,'timeline'=>'','dsp_json'=>'[]','revenue'=>0,'release_status'=>'pending'];
+ $streams=array_key_exists('streams',$d)?filter_var($d['streams'],FILTER_VALIDATE_INT):(int)$current['streams'];
+ $playlists=array_key_exists('playlists',$d)?filter_var($d['playlists'],FILTER_VALIDATE_INT):(int)$current['playlists'];
+ $revenue=array_key_exists('revenue',$d)?(float)$d['revenue']:(float)$current['revenue'];
+ $releaseStatus=array_key_exists('release_status',$d)?(string)$d['release_status']:(string)$current['release_status'];
+ $timeline=array_key_exists('timeline',$d)?(string)$d['timeline']:(string)$current['timeline'];
+ $dsp=array_key_exists('dsp',$d)?$d['dsp']:json_decode((string)$current['dsp_json'],true);
+ if(!is_finite($revenue))$revenue=-1;$revenue=round($revenue,2);
+ if($streams===false||$streams<0||$playlists===false||$playlists<0||$revenue<0||$revenue>10000000||text_len($timeline)>10000||!in_array($releaseStatus,['pending','distributed','takedown','deleted'],true)||!is_array($dsp)||strlen((string)json_encode($dsp))>10000)json_out(['error'=>'Enter streams, revenue (0 – 10,000,000), a valid release status and valid DSP data.'],422);
+ $pdo->beginTransaction();try{
+  $pdo->prepare('INSERT INTO music_release_reports(order_id,streams,playlists,timeline,dsp_json,revenue,release_status) VALUES(?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE streams=VALUES(streams),playlists=VALUES(playlists),timeline=VALUES(timeline),dsp_json=VALUES(dsp_json),revenue=VALUES(revenue),release_status=VALUES(release_status)')->execute([$id,$streams,$playlists,text_cut($timeline,0,10000),json_encode($dsp),$revenue,$releaseStatus]);
+  recompute_artist_report($pdo,(int)$release['user_id']);
+  $pdo->commit();
+ }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+ audit('music.report_saved',(int)$u['id'],['order_id'=>$id,'user_id'=>(int)$release['user_id'],'streams'=>$streams,'revenue'=>$revenue,'release_status'=>$releaseStatus]);json_out(['ok'=>true]);
+}
+if($action==='withdraw'){
+ $uid=$admin?(int)($d['user_id']??0):(int)$u['id'];$amount=round((float)($d['amount']??0),2);$method=trim((string)($d['method']??''));$name=trim((string)($d['beneficiary']??''));$details=trim((string)($d['payout_details']??''));$request=(string)($d['request_id']??'');
+ $email=strtolower(trim((string)($d['email']??'')));$proof=trim((string)($d['proof_media_id']??''));
+ if($amount<=0||$amount>10000000||!$method||!$name||!$details||strlen($method)>80||text_len($name)>180||text_len($details)>2000||!preg_match('/^[a-zA-Z0-9_-]{16,80}$/',$request))json_out(['error'=>'Complete beneficiary, method/network, payout details and a positive EUR amount.'],422);
+ if($email===''||!filter_var($email,FILTER_VALIDATE_EMAIL)||strlen($email)>190)json_out(['error'=>'Enter a valid email address for the payout receipt.'],422);
+ if($proof!==''&&!preg_match('/^[a-f0-9]{32}$/',$proof))json_out(['error'=>'Invalid proof attachment.'],422);
+ $pdo->beginTransaction();try{$q=$pdo->prepare("SELECT id FROM users WHERE id=? AND role='customer' FOR UPDATE");$q->execute([$uid]);if(!$q->fetch()){$pdo->rollBack();json_out(['error'=>'Customer not found.'],404);}
+  if($proof!==''){$q=$pdo->prepare('SELECT id FROM customer_media WHERE id=? AND user_id=?');$q->execute([$proof,$uid]);if(!$q->fetch()){$pdo->rollBack();json_out(['error'=>'Proof file not found. Upload it again.'],422);}}
+  $q=$pdo->prepare('SELECT id FROM royalty_withdrawals WHERE user_id=? AND request_id=?');$q->execute([$uid,$request]);if($id=$q->fetchColumn()){$pdo->commit();json_out(['ok'=>true,'id'=>$id,'duplicate'=>true]);}if(royalty_balance($uid)+.001<$amount){$pdo->rollBack();json_out(['error'=>'Insufficient available royalties.'],422);}
+ $pdo->prepare('INSERT INTO royalty_withdrawals(user_id,request_id,amount,method,beneficiary,payout_details,email,proof_media_id) VALUES(?,?,?,?,?,?,?,?)')->execute([$uid,$request,$amount,text_cut($method,0,80),$name,encrypt_private_note($details),$email,$proof!==''?$proof:null]);$id=(int)$pdo->lastInsertId();$pdo->prepare('INSERT INTO royalty_ledger(user_id,amount,reference,note) VALUES(?,?,?,?)')->execute([$uid,-$amount,'withdraw:'.$id,'Reserved for withdrawal #'.$id]);$pdo->commit();audit('royalty.withdraw_requested',(int)$u['id'],['id'=>$id,'amount'=>$amount,'has_proof'=>$proof!=='']);json_out(['ok'=>true,'id'=>$id]);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+}
+if($action==='withdraw_status'){
+ if(!$admin)json_out(['error'=>'Admin access required.'],403);$id=(int)($d['id']??0);$status=(string)($d['status']??'');$ref=trim((string)($d['payment_reference']??''));if(!in_array($status,['processing','accepted','paid','denied'],true)||($status==='paid'&&(!$ref||strlen($ref)>255)))json_out(['error'=>'A payment reference is required after the external transfer.'],422);
+ $pdo->beginTransaction();try{$q=$pdo->prepare('SELECT user_id FROM royalty_withdrawals WHERE id=?');$q->execute([$id]);$uid=(int)$q->fetchColumn();$pdo->prepare('SELECT id FROM users WHERE id=? FOR UPDATE')->execute([$uid]);$q=$pdo->prepare('SELECT * FROM royalty_withdrawals WHERE id=? FOR UPDATE');$q->execute([$id]);$w=$q->fetch();if(!$w){$pdo->rollBack();json_out(['error'=>'Withdrawal not found.'],404);}if(in_array($w['status'],['paid','denied'],true)){$pdo->rollBack();json_out(['error'=>'This withdrawal is final.'],409);}if($status==='denied')$pdo->prepare('INSERT INTO royalty_ledger(user_id,amount,reference,note) VALUES(?,?,?,?)')->execute([$uid,$w['amount'],'withdraw-refund:'.$id,'Denied withdrawal returned']);$pdo->prepare('UPDATE royalty_withdrawals SET status=?,payment_reference=? WHERE id=?')->execute([$status,$ref,$id]);$pdo->commit();audit('royalty.withdraw_status',(int)$u['id'],['id'=>$id,'status'=>$status]);require_once dirname(__DIR__,2).'/app/notifications.php';$q=$pdo->prepare('SELECT email FROM users WHERE id=?');$q->execute([$uid]);$recipient=$q->fetchColumn();if($status==='paid'){require_once dirname(__DIR__,2).'/app/documents.php';queue_document_email($uid,'Royalty payout receipt #'.$id,['PAYOUT RECEIPT #'.$id,'Beneficiary: '.$w['beneficiary'],'Amount: EUR '.number_format((float)$w['amount'],2),'Method/network: '.$w['method'],'External reference: '.$ref,'Status: Paid','Date: '.gmdate('Y-m-d H:i')],'PAYOUT-'.$id.'.pdf');}queue_email($recipient,'Royalty withdrawal #'.$id.' · '.$status,'Your EUR '.number_format((float)$w['amount'],2).' withdrawal is '.$status.'. View your statement and receipt at https://tdctech.org/services/music.',$uid);json_out(['ok'=>true]);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+}
+json_out(['error'=>'Unknown royalty action.'],400);

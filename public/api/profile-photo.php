@@ -1,5 +1,5 @@
 <?php
-require dirname(__DIR__,2).'/app/bootstrap.php';$u=require_user();require_method('POST');require_csrf();$file=$_FILES['photo']??null;
+require_once dirname(__DIR__,2).'/app/bootstrap.php';$u=require_user();require_method('POST');require_csrf();$file=$_FILES['photo']??null;
 if(!$file||$file['error']!==UPLOAD_ERR_OK||$file['size']>3*1024*1024)json_out(['error'=>'Choose a JPG, PNG or WebP image up to 3 MB.'],422);
 $info=@getimagesize($file['tmp_name']);if(!$info||!in_array($info['mime'],['image/jpeg','image/png','image/webp'],true)||$info[0]>4096||$info[1]>4096)json_out(['error'=>'Use a valid image no larger than 4096 × 4096.'],422);
 $image=@imagecreatefromstring(file_get_contents($file['tmp_name']));if(!$image)json_out(['error'=>'Image could not be read.'],422);

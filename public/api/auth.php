@@ -1,5 +1,5 @@
 <?php
-require dirname(__DIR__,2).'/app/bootstrap.php';
+require_once dirname(__DIR__,2).'/app/bootstrap.php';
 require_method('POST');
 require_csrf();
 require_once dirname(__DIR__,2).'/app/auth_codes.php';
@@ -28,6 +28,9 @@ if ($action==='register') {
     $email=strtolower(trim((string)($data['email']??'')));
     $password=(string)($data['password']??'');
     if (text_len($name)<2 || text_len($name)>120 || !filter_var($email,FILTER_VALIDATE_EMAIL) || strlen($password)<12 || strlen($password)>200) json_out(['error'=>'Enter a valid name and email. Password must be at least 12 characters.'],422);
+    $registrationIp=hash('sha256',(string)($_SERVER['REMOTE_ADDR']??''));$registrationKey=hash('sha256','registration');
+    db()->prepare('INSERT INTO login_attempt_limits(email_hash,ip_hash,attempt_count,window_started) VALUES(?,?,1,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE attempt_count=IF(window_started<UTC_TIMESTAMP()-INTERVAL 15 MINUTE,1,attempt_count+1),window_started=IF(window_started<UTC_TIMESTAMP()-INTERVAL 15 MINUTE,UTC_TIMESTAMP(),window_started)')->execute([$registrationKey,$registrationIp]);
+    $registrationLimit=db()->prepare('SELECT attempt_count FROM login_attempt_limits WHERE email_hash=? AND ip_hash=?');$registrationLimit->execute([$registrationKey,$registrationIp]);if((int)$registrationLimit->fetchColumn()>5)json_out(['error'=>'Too many registration attempts. Wait 15 minutes and try again.'],429);
     try {
         $q=db()->prepare("INSERT INTO users(name,email,password_hash) VALUES(?,?,?)");
         $q->execute([$name,$email,password_hash($password,PASSWORD_DEFAULT)]);
@@ -37,7 +40,6 @@ if ($action==='register') {
         throw $e;
     }
     audit('account.registered',$uid);
-    try { queue_email($email,'Welcome to TDC Tech','Hello '.$name.",\n\nYour account is ready. Sign in to manage your services, orders, and wallet.",$uid); } catch(Throwable $e) { error_log('Welcome email could not be queued: '.$e->getMessage()); }
     if (email_code_step_enabled()) {
         begin_code_step($uid,'register',$email,$name,'/dashboard');
     }
@@ -60,6 +62,14 @@ if (in_array($action,['login','admin_login'],true)) {
     db()->prepare('DELETE FROM login_attempt_limits WHERE email_hash=? AND ip_hash=?')->execute([$eh,$ip]);
     if (password_needs_rehash($u['password_hash'],PASSWORD_DEFAULT)) db()->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([password_hash($password,PASSWORD_DEFAULT),$u['id']]);
     $redirect=$u['role']==='admin'?'/admin/':'/dashboard';
+    $check=db()->prepare('SELECT name,email,email_verified_at,created_at FROM users WHERE id=?');$check->execute([$u['id']]);$registration=$check->fetch();
+    if (!$registration['email_verified_at'] && $registration['created_at']>=TDC_REGISTRATION_OTP_SINCE) {
+        if(email_code_resend_throttled((int)$u['id'],'register')) {
+            $_SESSION['pending_uid']=(int)$u['id'];$_SESSION['pending_purpose']='register';$_SESSION['pending_redirect']=$redirect;
+            json_out(['ok'=>true,'step'=>'code','redirect'=>'/verify','csrf'=>csrf_token()]);
+        }
+        begin_code_step((int)$u['id'],'register',$email,$registration['name'],$redirect);
+    }
     if (email_code_applies_to((string)$u['role'],$email)) {
         begin_code_step((int)$u['id'],'login',$email,'',$redirect);
     }
@@ -83,7 +93,11 @@ if ($action==='verify_code') {
     }
     $q=db()->prepare('SELECT id,role,status FROM users WHERE id=?'); $q->execute([$uid]); $u=$q->fetch();
     if (!$u || $u['status']!=='active') json_out(['error'=>'This account is not active.'],403);
-    if ($purpose==='register') mark_email_verified($uid);
+    if ($purpose==='register') {
+        mark_email_verified($uid);
+        $welcome=db()->prepare('SELECT name,email FROM users WHERE id=?');$welcome->execute([$uid]);$newUser=$welcome->fetch();
+        queue_email($newUser['email'],'Welcome to TDC Tech','Hello '.$newUser['name'].",\n\nYour email is verified. Your TDC Tech account is ready.",$uid);
+    }
     session_regenerate_id(true);
     $_SESSION['uid']=(int)$u['id'];
     $_SESSION['csrf']=bin2hex(random_bytes(32));

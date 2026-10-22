@@ -1,8 +1,8 @@
 <?php
-require dirname(__DIR__,2).'/app/bootstrap.php';$u=require_user();$admin=$u['role']==='admin';$pdo=db();
+require_once dirname(__DIR__,2).'/app/bootstrap.php';$u=require_user();$admin=$u['role']==='admin';$pdo=db();
 function ticket_access(int $id,array $u):array{$q=db()->prepare('SELECT * FROM support_tickets WHERE id=?');$q->execute([$id]);$t=$q->fetch();if(!$t||($u['role']!=='admin'&&(int)$t['user_id']!==(int)$u['id']))json_out(['error'=>'Ticket not found.'],404);return $t;}
 if($_SERVER['REQUEST_METHOD']==='GET'){
- if(isset($_GET['id'])){$t=ticket_access((int)$_GET['id'],$u);$q=$pdo->prepare('SELECT m.id,m.body,m.created_at,u.name,u.role FROM support_messages m JOIN users u ON u.id=m.user_id WHERE ticket_id=? ORDER BY m.id LIMIT 1000');$q->execute([$t['id']]);json_out(['ticket'=>$t,'messages'=>$q->fetchAll(),'csrf'=>csrf_token()]);}
+ if(isset($_GET['id'])){$t=ticket_access((int)$_GET['id'],$u);$q=$pdo->prepare('SELECT m.id,m.body,m.created_at,u.name,u.role FROM support_messages m JOIN users u ON u.id=m.user_id WHERE ticket_id=? ORDER BY m.id LIMIT 1000');$q->execute([$t['id']]);$messages=$q->fetchAll();foreach($messages as &$message){$a=$pdo->prepare('SELECT m.id,m.original_name FROM ticket_media a JOIN customer_media m ON m.id=a.media_id WHERE a.message_id=?');$a->execute([$message['id']]);$message['media']=$a->fetchAll();}unset($message);json_out(['ticket'=>$t,'messages'=>$messages,'csrf'=>csrf_token()]);}
  $sql='SELECT t.*,u.name customer,(SELECT MAX(m.id) FROM support_messages m WHERE m.ticket_id=t.id) last_message_id FROM support_tickets t JOIN users u ON u.id=t.user_id'.($admin?'':' WHERE t.user_id=?').' ORDER BY t.updated_at DESC,t.id DESC LIMIT 250';$q=$pdo->prepare($sql);$q->execute($admin?[]:[$u['id']]);$tickets=$q->fetchAll();json_out(['tickets'=>$tickets,'open_count'=>count(array_filter($tickets,fn($t)=>$t['status']!=='closed')),'csrf'=>csrf_token()]);
 }
 require_method('POST');require_csrf();$d=json_body();$action=$d['action']??'';
@@ -24,5 +24,6 @@ try{
   $id=(int)($d['id']??0);$t=ticket_access($id,$u);if($t['status']==='closed'){$pdo->rollBack();json_out(['error'=>'This ticket is closed. Create a new ticket or ask admin to reopen it.'],409);}
  }else{$pdo->rollBack();json_out(['error'=>'Unknown action.'],400);}
  $pdo->prepare('INSERT INTO support_messages(ticket_id,user_id,body) VALUES(?,?,?)')->execute([$id,$u['id'],$body]);
+ $messageId=(int)$pdo->lastInsertId();$media=$d['media_ids']??[];if(!is_array($media)||count($media)>5){$pdo->rollBack();json_out(['error'=>'Attach up to five screenshots.'],422);}foreach(array_unique($media) as $mid){if(!is_string($mid)){ $pdo->rollBack();json_out(['error'=>'Invalid attachment.'],422);}$q=$pdo->prepare("SELECT id FROM customer_media WHERE id=? AND user_id=? AND mime IN ('image/jpeg','image/png','image/webp') AND order_id IS NULL AND NOT EXISTS(SELECT 1 FROM ticket_media WHERE media_id=?) FOR UPDATE");$q->execute([$mid,$u['id'],$mid]);if(!$q->fetch()){$pdo->rollBack();json_out(['error'=>'Select your unattached JPG, PNG or WebP screenshots.'],422);}$pdo->prepare('INSERT INTO ticket_media(message_id,media_id) VALUES(?,?)')->execute([$messageId,$mid]);}
  $pdo->prepare('UPDATE support_tickets SET status=?,updated_at=UTC_TIMESTAMP() WHERE id=?')->execute([$admin?'answered':'open',$id]);$pdo->commit();audit('support.message_sent',(int)$u['id'],['ticket_id'=>$id]);json_out(['ok'=>true,'id'=>$id]);
 }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}

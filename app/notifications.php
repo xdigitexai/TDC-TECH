@@ -21,8 +21,10 @@ if(!in_array($code,$expected,true)) {
 return $response;
 }
 function smtp_command($socket,string $command,array $expected): string {if(fwrite($socket,$command."\r\n")===false)throw new RuntimeException('SMTP connection failed.');return smtp_read($socket,$expected);}
-function smtp_send(string $to,string $subject,string $body): void {
+function smtp_send(string $to,string $subject,string $body,array $attachments=[],?string $html=null): void {
   if(tdc_email_suppressed($to))throw new RuntimeException('Recipient suppressed after prior bounce.');
+  try { if(!$html){require_once '/var/www/shared-xmail/renderer.php';$render=xm_legacy(['name'=>'TDC Tech','site'=>'https://tdctech.org','locale'=>'en','color'=>'#167E78'],$subject,$body,false);$html=$render['html'];} }catch(Throwable $e){error_log('TDC renderer fallback');}
+
   $host=smtp_setting('TDC_SMTP_HOST');$port=(int)smtp_setting('TDC_SMTP_PORT','587');$user=smtp_setting('TDC_SMTP_USER');$pass=smtp_setting('TDC_SMTP_PASS');$secure=strtolower(smtp_setting('TDC_SMTP_ENCRYPTION','tls'));$from=smtp_setting('TDC_SMTP_FROM');$fromName=smtp_setting('TDC_SMTP_FROM_NAME','TDC Tech');
   if($host===''||$port<1||$user===''||$pass===''||!filter_var($from,FILTER_VALIDATE_EMAIL))throw new RuntimeException('SMTP settings are not configured.');
   if(!in_array($secure,['tls','ssl'],true))throw new RuntimeException('SMTP encryption must be TLS or SSL.');
@@ -35,8 +37,9 @@ function smtp_send(string $to,string $subject,string $body): void {
     smtp_command($socket,'AUTH LOGIN',[334]);smtp_command($socket,base64_encode($user),[334]);smtp_command($socket,base64_encode($pass),[235]);
     smtp_command($socket,'MAIL FROM:<'.$from.'>',[250]);smtp_command($socket,'RCPT TO:<'.$to.'>',[250,251]);smtp_command($socket,'DATA',[354]);
     $encodedSubject='=?UTF-8?B?'.base64_encode($subject).'?=';$safeName='=?UTF-8?B?'.base64_encode($fromName).'?=';$date=gmdate('D, d M Y H:i:s').' +0000';
-    $message='Date: '.$date."\r\nFrom: ".$safeName.' <'.$from.">\r\nTo: <".$to.">\r\nSubject: ".$encodedSubject."\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n";
-    $text=str_replace(["\r\n","\r"],"\n",$body);$message.=preg_replace('/^\./m','..',$text);$message=preg_replace('/(?<!\r)\n/','\r\n',$message);fwrite($socket,$message."\r\n.\r\n");smtp_read($socket,[250]);smtp_command($socket,'QUIT',[221]);
+    $message='Message-ID: <'.bin2hex(random_bytes(16)).'@xdigitex.com>'."\r\n".'Date: '.$date."\r\nFrom: ".$safeName.' <'.$from.">\r\nTo: <".$to.">\r\nSubject: ".$encodedSubject."\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n";
+    $parts=[];$boundary='tdc_'.bin2hex(random_bytes(16));if($attachments||$html){$message='Message-ID: <'.bin2hex(random_bytes(16)).'@xdigitex.com>'."\r\n".'Date: '.$date."\r\nFrom: ".$safeName.' <'.$from.">\r\nTo: <".$to.">\r\nSubject: ".$encodedSubject."\r\nMIME-Version: 1.0\r\nContent-Type: multipart/".($attachments?'mixed':'alternative')."; boundary=\"".$boundary."\"\r\n\r\n";$parts[]='--'.$boundary."\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n".chunk_split(base64_encode($body));if($html)$parts[]='--'.$boundary."\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n".chunk_split(base64_encode($html));foreach($attachments as $attachment){$stored=$attachment['stored']??'';if(!preg_match('/^[a-f0-9]{40}\.pdf$/',$stored))continue;$file=__DIR__.'/../storage/documents/'.$stored;if(!is_file($file))continue;$name=preg_replace('/[^a-zA-Z0-9._-]/','_',($attachment['name']??'document.pdf'));$parts[]='--'.$boundary."\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"".$name."\"\r\nContent-Transfer-Encoding: base64\r\n\r\n".chunk_split(base64_encode(file_get_contents($file)));}$body=implode("\r\n",$parts)."\r\n--".$boundary.'--';}
+    $text=str_replace(["\r\n","\r"],"\n",$body);$message.=preg_replace('/^\./m','..',$text);$message=preg_replace('/(?<!\r)\n/',"\r\n",$message);fwrite($socket,$message."\r\n.\r\n");smtp_read($socket,[250]);smtp_command($socket,'QUIT',[221]);
   }finally{fclose($socket);}
 }
 function send_notification_batch(int $limit=30): int {
@@ -44,7 +47,7 @@ function send_notification_batch(int $limit=30): int {
   db()->exec("UPDATE notification_outbox SET status='queued' WHERE status='sending' AND updated_at<UTC_TIMESTAMP()-INTERVAL 15 MINUTE");
   for($i=0;$i<$limit;$i++){
     $pdo=db();$pdo->beginTransaction();$q=$pdo->query("SELECT * FROM notification_outbox WHERE status='queued' ORDER BY id LIMIT 1 FOR UPDATE");$row=$q->fetch();if(!$row){$pdo->commit();break;}$pdo->prepare("UPDATE notification_outbox SET status='sending',attempts=attempts+1 WHERE id=?")->execute([$row['id']]);$pdo->commit();
-    try{smtp_send($row['recipient_email'],$row['subject'],$row['body_text']);$pdo->prepare("UPDATE notification_outbox SET status='sent',sent_at=UTC_TIMESTAMP(),last_error=NULL WHERE id=?")->execute([$row['id']]);$sent++;}
+    try{smtp_send($row['recipient_email'],$row['subject'],$row['body_text'],json_decode($row['attachments_json']??'[]',true)?:[],$row['body_html']??null);$pdo->prepare("UPDATE notification_outbox SET status='sent',sent_at=UTC_TIMESTAMP(),last_error=NULL WHERE id=?")->execute([$row['id']]);$sent++;}
     catch(Throwable $e){$pdo->prepare("UPDATE notification_outbox SET status='failed',last_error=? WHERE id=?")->execute([text_cut($e->getMessage(),0,500),$row['id']]);error_log('TDC notification email failed (id '.$row['id'].'): '.$e->getMessage());}
   }
   return $sent;
@@ -55,6 +58,50 @@ function notify_successful_login(int $uid): void {
     $q=db()->prepare('SELECT email,name FROM users WHERE id=?');$q->execute([$uid]);$u=$q->fetch();
     if($u)queue_email($u['email'],'New sign-in to TDC Tech',"Hello ".$u['name'].",\n\nA successful sign-in to your TDC Tech account occurred at ".gmdate('Y-m-d H:i:s')." UTC.\n\nIf this was not you, change your password and contact support.\nhttps://tdctech.org/profile",$uid);
   } catch(Throwable $e){error_log('TDC login notification could not be queued.');}
+}
+
+/** Admin notification address: TDC_ADMIN_EMAIL, then settings, then the first active admin account. */
+function tdc_admin_email(): string {
+  static $resolved=null;
+  if($resolved!==null)return $resolved;
+  $candidates=[];
+  if(defined('TDC_ADMIN_EMAIL'))$candidates[]=(string)constant('TDC_ADMIN_EMAIL');
+  $env=function_exists('envv')?(string)envv('TDC_ADMIN_EMAIL',''):'';
+  if(trim($env)!=='')$candidates[]=$env;
+  try{$q=db()->query("SELECT setting_value FROM site_settings WHERE setting_key IN ('admin_email','support_email','contact_email')");foreach($q->fetchAll(PDO::FETCH_COLUMN) as $value)$candidates[]=(string)$value;}catch(Throwable $e){}
+  try{$q=db()->query("SELECT email FROM users WHERE role='admin' AND status='active' ORDER BY id LIMIT 1");$candidates[]=(string)$q->fetchColumn();}catch(Throwable $e){}
+  foreach($candidates as $candidate){
+    $candidate=trim($candidate);
+    if($candidate!==''&&filter_var($candidate,FILTER_VALIDATE_EMAIL)){$resolved=$candidate;return $resolved;}
+  }
+  $resolved='';
+  return $resolved;
+}
+
+/** Queue an order status email to the customer and to the admin address. Never throws. */
+function notify_order_status(int $orderId,string $status,?string $previousStatus=null): void {
+  try{
+    $status=strtolower(trim($status));
+    if(!in_array($status,['pending','processing','completed','delivered','rejected','cancelled'],true))return;
+    if($previousStatus!==null&&strtolower(trim($previousStatus))===$status)return;
+    $q=db()->prepare('SELECT o.id,o.description,o.amount,o.user_id,s.name service,u.name customer,u.email FROM orders o JOIN services s ON s.id=o.service_id LEFT JOIN users u ON u.id=o.user_id WHERE o.id=?');
+    $q->execute([$orderId]);$o=$q->fetch();if(!$o)return;
+    $email=(string)($o['email']??'');
+    $customer=(string)($o['customer']??'Customer');
+    $subject='Order #'.$o['id'].' is '.$status.' · TDC Tech';
+    $recent=db()->prepare('SELECT id FROM notification_outbox WHERE subject=? AND created_at>UTC_TIMESTAMP()-INTERVAL 12 HOUR LIMIT 1');
+    $recent->execute([$subject]);if($recent->fetchColumn())return;
+    $lines=['Order reference : #'.$o['id'],'Service         : '.$o['service'],'Description     : '.$o['description'],'Amount          : EUR '.number_format((float)$o['amount'],2),'Status          : '.ucfirst($status),'Updated         : '.gmdate('Y-m-d H:i').' UTC'];
+    if($email!==''){
+      $body="Hello ".$customer.",\n\nYour order has been updated.\n\n".implode("\n",$lines)."\n\nSign in to your dashboard to follow progress.\nhttps://tdctech.org/dashboard\n\nTDC Tech\n";
+      queue_email($email,$subject,$body,(int)$o['user_id']);
+    }
+    $admin=tdc_admin_email();
+    if($admin!==''){
+      $adminBody="Order status update\n\nCustomer        : ".$customer.' <'.$email.">\n".implode("\n",$lines)."\n\nhttps://tdctech.org/admin/\n";
+      queue_email($admin,'[Admin] '.$subject,$adminBody,null);
+    }
+  }catch(Throwable $e){error_log('Order status notification failed (order '.$orderId.'): '.$e->getMessage());}
 }
 
 function tdc_email_suppressed(string $email): bool {

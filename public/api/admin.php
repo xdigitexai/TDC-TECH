@@ -1,5 +1,5 @@
 <?php
-require dirname(__DIR__,2).'/app/bootstrap.php';
+require_once dirname(__DIR__,2).'/app/bootstrap.php';
 $admin=require_admin();
 if($_SERVER['REQUEST_METHOD']==='GET') {
   $pdo=db();
@@ -44,8 +44,8 @@ if($act==='order_status') {
   if(in_array($status,['rejected','cancelled'],true) && !$check->fetch() && (float)$o['amount']>0) {
     $pdo->prepare("INSERT INTO wallet_ledger(user_id,amount,kind,status,reference,note,created_by,created_at) VALUES(?,?,'refund','posted',?,?,?,UTC_TIMESTAMP())")->execute([$o['user_id'],$o['amount'],'order:'.$id,'Refund for order #'.$id,$admin['id']]);
   }
-  $pdo->commit();audit('order.status_changed',(int)$admin['id'],['order_id'=>$id,'status'=>$status]);
-  if($status!==$o['status'])try{require_once dirname(__DIR__,2).'/app/notifications.php';queue_email($o['email'],'TDC Tech order update','Hello '.$o['name'].",\n\nYour order #".$id.' is now '.$status.'. Sign in to your TDC Tech dashboard for details.',(int)$o['user_id']);}catch(Throwable $e){error_log('Order status email could not be queued: '.$e->getMessage());}
+  $pdo->commit();if($status==='completed'&&$status!==$o['status'])try{require_once dirname(__DIR__,2).'/app/documents.php';[$invoiceOrder,$invoiceLines]=tdc_invoice($id);queue_document_email((int)$o['user_id'],'Completed order invoice #'.$id,$invoiceLines,'INV-'.$id.'.pdf');}catch(Throwable $e){error_log('Completed invoice queue failed');}audit('order.status_changed',(int)$admin['id'],['order_id'=>$id,'status'=>$status]);
+  if($status!==$o['status'])try{require_once dirname(__DIR__,2).'/app/notifications.php';notify_order_status($id,$status,(string)$o['status']);}catch(Throwable $e){error_log('Order status email could not be queued: '.$e->getMessage());}
   json_out(['ok'=>true]);
 }
 if($act==='service_update') {

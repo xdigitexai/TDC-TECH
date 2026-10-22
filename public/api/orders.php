@@ -1,8 +1,8 @@
 <?php
-require dirname(__DIR__,2).'/app/bootstrap.php';
+require_once dirname(__DIR__,2).'/app/bootstrap.php';
 $u=require_user();
 if ($_SERVER['REQUEST_METHOD']==='GET') {
-    $q=db()->prepare('SELECT o.id,s.name service,s.slug service_slug,(SELECT ps.page_slug FROM service_page_services ps WHERE ps.service_id=s.id LIMIT 1) page_slug,o.description,o.details,o.admin_note,o.amount,o.status,o.created_at,j.provider_status,j.remains,j.start_count FROM orders o JOIN services s ON s.id=o.service_id LEFT JOIN smm_jobs j ON j.order_id=o.id WHERE o.user_id=? ORDER BY o.id DESC LIMIT 100'); $q->execute([$u['id']]); $orders=$q->fetchAll(); foreach($orders as &$order){$order['admin_note']=decrypt_private_note($order['admin_note']);} unset($order);
+    $q=db()->prepare('SELECT o.id,s.name service,s.slug service_slug,(SELECT ps.page_slug FROM service_page_services ps WHERE ps.service_id=s.id LIMIT 1) page_slug,o.description,o.details,o.admin_note,o.amount,o.status,o.delivery_stage,o.created_at,j.provider_status,j.remains,j.start_count FROM orders o JOIN services s ON s.id=o.service_id LEFT JOIN smm_jobs j ON j.order_id=o.id WHERE o.user_id=? ORDER BY o.id DESC LIMIT 100'); $q->execute([$u['id']]); $orders=$q->fetchAll(); foreach($orders as &$order){$order['admin_note']=decrypt_private_note($order['admin_note']);} unset($order);
     $q=db()->prepare('SELECT id,amount,kind,status,note,created_at FROM wallet_ledger WHERE user_id=? ORDER BY id DESC LIMIT 100'); $q->execute([$u['id']]);
     $transactions=$q->fetchAll();
     $q=db()->prepare("SELECT COUNT(*) total,SUM(status IN ('pending','processing')) active,SUM(status='completed') completed FROM orders WHERE user_id=?");$q->execute([$u['id']]);$totals=$q->fetch();
@@ -19,12 +19,42 @@ if(str_starts_with($slug,'smm-p')){
     if(!$s)json_out(['error'=>'Service unavailable. Refresh the catalog.'],404);
     try{json_out(smm_submit_order($u,$s,$data));}catch(InvalidArgumentException $e){json_out(['error'=>$e->getMessage()],str_contains($e->getMessage(),'Insufficient')?402:422);}
 }
+if(str_starts_with($slug,'template-'))json_out(['error'=>'Purchase templates through the marketplace cart.'],422);
 $q=db()->prepare('SELECT id,name,price,pricing_mode FROM services WHERE slug=? AND active=1'); $q->execute([$slug]); $service=$q->fetch();
 if(!$service) json_out(['error'=>'This service is currently unavailable.'],404);
 $desc=trim((string)($data['description']??$service['name'])); $desc=text_cut($desc,0,255);
-$details=$data['details']??[]; if(!is_array($details)) $details=[]; if(strlen(json_encode($details)?:'')>5000) json_out(['error'=>'Order details are too long.'],422);
+$details=$data['details']??[]; if(!is_array($details)) $details=[];
+$releaseKind='';
+if($slug==='music'){
+    $releaseKind=strtolower(trim((string)($details['release_kind']??'')));
+    if(!in_array($releaseKind,['single','album','video'],true)) $releaseKind='single';
+    $details['release_kind']=$releaseKind;
+    $details['release_title']=text_cut(trim((string)($details['release_title']??'')),0,200);
+    $details['artist']=text_cut(trim((string)($details['artist']??'')),0,200);
+    foreach(['genre','language','release_date','featured_artists','isrc','upc','copyright'] as $key){
+        if(isset($details[$key])) $details[$key]=text_cut(trim((string)$details[$key]),0,160);
+    }
+    if(isset($details['description'])) $details['description']=text_cut(trim((string)$details['description']),0,2000);
+    $genres=$details['genres']??[]; if(is_string($genres)) $genres=preg_split('/[,;]\s*/',$genres)?:[]; if(!is_array($genres)) $genres=[];
+    $details['genres']=array_slice(array_values(array_filter(array_map(fn($g)=>text_cut(trim((string)$g),0,60),$genres),fn($g)=>$g!=='')),0,10);
+    $tracks=$details['tracks']??[]; if(!is_array($tracks)) $tracks=[]; $cleanTracks=[];
+    foreach(array_slice($tracks,0,20) as $track){
+        if(!is_array($track)) continue;
+        $trackTitle=text_cut(trim((string)($track['title']??'')),0,200);
+        if($trackTitle==='') continue;
+        $cleanTracks[]=['title'=>$trackTitle,'isrc'=>text_cut(trim((string)($track['isrc']??'')),0,40)];
+    }
+    $details['tracks']=$cleanTracks;
+    $outlets=$details['outlets']??[]; if(is_string($outlets)) $outlets=preg_split('/[,;]\s*/',$outlets)?:[]; if(!is_array($outlets)) $outlets=[];
+    $details['outlets']=array_slice(array_values(array_filter(array_map(fn($o)=>text_cut(trim((string)$o),0,60),$outlets),fn($o)=>$o!=='')),0,30);
+}
+if(strlen(json_encode($details)?:'')>5000) json_out(['error'=>'Order details are too long.'],422);
 $mediaIds=$details['media_ids']??[];if(!is_array($mediaIds)||count($mediaIds)>20||array_filter($mediaIds,fn($id)=>!is_string($id)||!preg_match('/^[a-f0-9]{32}$/',$id)))json_out(['error'=>'Invalid media selection.'],422);$mediaIds=array_values(array_unique($mediaIds));
-if($slug==='music'&&(trim((string)($details['release_title']??''))===''||trim((string)($details['artist']??''))===''||!$mediaIds))json_out(['error'=>'Enter a release title and artist, then upload and select your audio and artwork.'],422);
+if($slug==='music'){
+    if(trim((string)($details['release_title']??''))===''||trim((string)($details['artist']??''))==='') json_out(['error'=>'Enter a release title and artist name.'],422);
+    if(!$mediaIds) json_out(['error'=>$releaseKind==='video'?'Upload your video and thumbnail, then select them.':'Upload your audio and artwork, then select them.'],422);
+    if($releaseKind==='album'&&!$details['tracks']) json_out(['error'=>'Add at least one track to the album.'],422);
+}
 // SMM prices are computed on the server from the configured per-1,000 rate.
 $amount=(float)$service['price'];
 if($service['pricing_mode']==='per_1000') { $qty=filter_var($details['quantity']??0,FILTER_VALIDATE_INT); if(!$qty||$qty<100||$qty>1000000) json_out(['error'=>'Quantity must be from 100 to 1,000,000.'],422); $amount=round(($qty/1000)*(float)$service['price'],2); }
@@ -36,13 +66,13 @@ if(($data['action']??'')==='quote') json_out(['amount'=>$amount,'currency'=>'EUR
 $pdo=db(); $pdo->beginTransaction();
 try {
     $lock=$pdo->prepare('SELECT id FROM users WHERE id=? FOR UPDATE'); $lock->execute([$u['id']]);
-    if($mediaIds){$marks=implode(',',array_fill(0,count($mediaIds),'?'));$q=$pdo->prepare("SELECT id,kind FROM customer_media WHERE id IN ($marks) AND user_id=? AND order_id IS NULL FOR UPDATE");$q->execute([...$mediaIds,$u['id']]);$files=$q->fetchAll();if(count($files)!==count($mediaIds)){ $pdo->rollBack();json_out(['error'=>'Select your own unattached uploaded files.'],422);}if($slug==='music'&&(!in_array('audio',array_column($files,'kind'),true)||!in_array('artwork',array_column($files,'kind'),true))){$pdo->rollBack();json_out(['error'=>'Select both audio and artwork for the release.'],422);}}
+    if($mediaIds){$marks=implode(',',array_fill(0,count($mediaIds),'?'));$q=$pdo->prepare("SELECT id,kind FROM customer_media WHERE id IN ($marks) AND user_id=? AND order_id IS NULL FOR UPDATE");$q->execute([...$mediaIds,$u['id']]);$files=$q->fetchAll();if(count($files)!==count($mediaIds)){ $pdo->rollBack();json_out(['error'=>'Select your own unattached uploaded files.'],422);}if($slug==='music'){$kinds=array_column($files,'kind');if(!in_array('artwork',$kinds,true)){$pdo->rollBack();json_out(['error'=>'Select the square cover artwork for this release.'],422);}if($releaseKind==='video'){if(!in_array('video',$kinds,true)){$pdo->rollBack();json_out(['error'=>'Select the video file for this release.'],422);}}elseif(!in_array('audio',$kinds,true)){$pdo->rollBack();json_out(['error'=>'Select at least one audio track for this release.'],422);}}}
     $bal=$pdo->prepare("SELECT COALESCE(SUM(CASE WHEN status='posted' THEN amount ELSE 0 END),0) FROM wallet_ledger WHERE user_id=?"); $bal->execute([$u['id']]);
     if((float)$bal->fetchColumn()<$amount) { $pdo->rollBack(); json_out(['error'=>'Insufficient wallet balance. Request a top-up and wait for confirmation.'],402); }
     $q=$pdo->prepare('INSERT INTO orders(user_id,service_id,description,details,amount,status,created_at) VALUES(?,?,?,?,?,\'pending\',UTC_TIMESTAMP())'); $q->execute([$u['id'],$service['id'],$desc,json_encode($details),$amount]); $orderId=(int)$pdo->lastInsertId();
     if($mediaIds){$q=$pdo->prepare('UPDATE customer_media SET order_id=? WHERE id=? AND user_id=? AND order_id IS NULL');foreach($mediaIds as $id)$q->execute([$orderId,$id,$u['id']]);}
     if($amount>0) { $q=$pdo->prepare("INSERT INTO wallet_ledger(user_id,amount,kind,status,reference,note,created_at) VALUES(?,?,'debit','posted',?,?,UTC_TIMESTAMP())"); $q->execute([$u['id'],-$amount,'order:'.$orderId,$desc]); }
-    $pdo->commit(); audit('order.created',(int)$u['id'],['order_id'=>$orderId,'amount'=>$amount]);
+    $pdo->commit();try{require_once dirname(__DIR__,2).'/app/documents.php';[$invoiceOrder,$invoiceLines]=tdc_invoice($orderId);queue_document_email((int)$u['id'],'Invoice INV-'.$orderId,$invoiceLines,'INV-'.$orderId.'.pdf');}catch(Throwable $e){error_log('PDF invoice queue failed');} audit('order.created',(int)$u['id'],['order_id'=>$orderId,'amount'=>$amount]);
     try {
         require_once dirname(__DIR__,2).'/app/notifications.php';
         $inv='INV-'.str_pad((string)$orderId,6,'0',STR_PAD_LEFT);
@@ -62,6 +92,19 @@ try {
             ."Sign in to your dashboard to follow progress on order #".$orderId.".\n\n"
             ."TDC Tech\n";
         queue_email($u['email'],'Invoice '.$inv.' · TDC Tech',$body,(int)$u['id']);
+        $admin=tdc_admin_email();
+        if($admin!==''){
+            $adminBody="New order received\n\n"
+                ."Order reference : #".$orderId."\n"
+                ."Customer        : ".$u['name']." <".$u['email'].">\n"
+                ."Service         : ".$service['name']."\n"
+                ."Description     : ".$desc."\n"
+                ."Amount          : EUR ".number_format($amount,2)."\n"
+                ."Status          : Pending\n"
+                ."Created         : ".gmdate('Y-m-d H:i')." UTC\n\n"
+                ."Open the admin console: https://tdctech.org/admin/\n";
+            queue_email($admin,'[Admin] New order #'.$orderId.' · '.$service['name'],$adminBody,null);
+        }
     } catch(Throwable $e) { error_log('Order invoice could not be queued: '.$e->getMessage()); }
     json_out(['ok'=>true,'order_id'=>$orderId,'amount'=>$amount,'message'=>'Order submitted.']);
 } catch(Throwable $e) { if($pdo->inTransaction()) $pdo->rollBack(); throw $e; }

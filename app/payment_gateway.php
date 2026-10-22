@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__.'/bootstrap.php';
 
 function pay_config(string $name): string {
+    $q=db()->prepare('SELECT setting_value FROM private_settings WHERE setting_key=?');$q->execute([$name]);$saved=$q->fetchColumn();if($saved!==false)return decrypt_private_note($saved);
     $value = defined($name) ? constant($name) : envv($name);
     return trim((string)$value);
 }

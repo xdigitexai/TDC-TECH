@@ -1,5 +1,5 @@
 <?php
-require dirname(__DIR__,2).'/app/bootstrap.php';$admin=require_admin();$pdo=db();
+require_once dirname(__DIR__,2).'/app/bootstrap.php';$admin=require_admin();$pdo=db();
 if($_SERVER['REQUEST_METHOD']==='GET'){
  require_method('GET');
  $statusRows=$pdo->query("SELECT status,COUNT(*) count FROM orders GROUP BY status")->fetchAll();$orderCount=array_sum(array_map(static fn($r)=>(int)$r['count'],$statusRows));$statusMap=[];foreach($statusRows as $row){$row['percent']=$orderCount?round((int)$row['count']*100/$orderCount,1):0;$statusMap[$row['status']]=$row;}
@@ -11,13 +11,13 @@ if($_SERVER['REQUEST_METHOD']==='GET'){
  $pages=$pdo->query("SELECT p.slug,p.name,p.icon,p.active,p.sort_order,COUNT(DISTINCT o.id) orders_count,COALESCE(SUM(CASE WHEN l.status='posted' AND l.kind='debit' THEN -l.amount WHEN l.status='posted' AND l.kind='refund' THEN l.amount ELSE 0 END),0) revenue FROM service_pages p LEFT JOIN service_page_services ps ON ps.page_slug=p.slug LEFT JOIN services s ON s.id=ps.service_id LEFT JOIN orders o ON o.service_id=s.id LEFT JOIN wallet_ledger l ON l.reference=CONCAT('order:',o.id) AND l.kind IN ('debit','refund') GROUP BY p.slug ORDER BY p.sort_order")->fetchAll();
  $settings=$pdo->query('SELECT setting_key,setting_value,updated_at FROM site_settings ORDER BY setting_key')->fetchAll();$items=$pdo->query('SELECT id,item_type,title,subtitle,body,image_url,icon_text,href,rating,sort_order,active FROM site_content_items ORDER BY item_type,sort_order,id')->fetchAll();$mail=$pdo->query('SELECT id,recipient_email,subject,status,attempts,last_error,sent_at,created_at FROM notification_outbox ORDER BY id DESC LIMIT 100')->fetchAll();
  require_once dirname(__DIR__,2).'/app/notifications.php';
- json_out(['stats'=>$stats,'analytics'=>['trend'=>$completeTrend,'statuses'=>$statuses],'pages'=>$pages,'settings'=>$settings,'items'=>$items,'mail'=>$mail,'smtp_configured'=>smtp_configured(),'csrf'=>csrf_token(),'admin'=>$admin]);
+ json_out(['stats'=>$stats,'analytics'=>['trend'=>$completeTrend,'statuses'=>$statuses],'pages'=>$pages,'settings'=>$settings,'items'=>$items,'mail'=>$mail,'mail_delivery_paused'=>is_file(dirname(__DIR__,2).'/storage/mail-delivery.disabled'),'smtp_configured'=>smtp_configured(),'csrf'=>csrf_token(),'admin'=>$admin]);
 }
 require_method('POST');require_csrf();$d=json_body();$action=(string)($d['action']??'');
 if($action==='setting_save'){
  $allowed=['meta_title','meta_description','brand_name','logo_url','favicon_url','home_title','home_subtitle','ads_hashtags','footer_pricing_text','footer_partnerships'];$key=(string)($d['key']??'');$value=trim((string)($d['value']??''));if(!in_array($key,$allowed,true)||text_len($value)>12000)json_out(['error'=>'Invalid setting or value too long.'],422);
  if(in_array($key,['logo_url','favicon_url'],true)&&$value!==''&&!preg_match('#^(https://|/)[^\s<>"\']+$#i',$value))json_out(['error'=>'Image and icon URLs must use HTTPS or a site-relative path.'],422);
- $q=$pdo->prepare('INSERT INTO site_settings(setting_key,setting_value,updated_by) VALUES(?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),updated_by=VALUES(updated_by)');$q->execute([$key,$value,$admin['id']]);audit('site.setting_updated',(int)$admin['id'],['key'=>$key]);json_out(['ok'=>true]);
+ $q=$pdo->prepare('INSERT INTO site_settings(setting_key,setting_value,updated_by) VALUES(?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),updated_by=VALUES(updated_by)');$q->execute([$key,$value,$admin['id']]);if(in_array($key,['logo_url','favicon_url','brand_name'],true)){require_once dirname(__DIR__,2).'/app/brand_assets.php';if($key==='brand_name'){$q=db()->query("SELECT setting_value FROM site_settings WHERE setting_key='logo_url'");$source=$q->fetchColumn()?:'';}else $source=$value;regenerate_brand_icons($source);}audit('site.setting_updated',(int)$admin['id'],['key'=>$key]);json_out(['ok'=>true]);
 }
 if($action==='item_save'){
  $id=(int)($d['id']??0);$type=(string)($d['item_type']??'');$types=['leaderboard','partner','brand','leader','testimonial','sponsor','collaborator','social'];$title=trim((string)($d['title']??''));$subtitle=trim((string)($d['subtitle']??''));$body=trim((string)($d['body']??''));$image=trim((string)($d['image_url']??''));$icon=trim((string)($d['icon_text']??''));$href=trim((string)($d['href']??''));$rating=max(1,min(5,(int)($d['rating']??5)));$sort=(int)($d['sort_order']??0);$active=($d['active']??false)===true;

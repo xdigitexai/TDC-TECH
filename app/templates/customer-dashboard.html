@@ -1086,7 +1086,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .tm-cart-bar button{border:none;background:var(--grad);color:#fff;border-radius:10px;padding:10px 16px;font-weight:700}
 
 </style>
-<style>#app-gate,.install-sheet{display:none!important}.order-card{padding:16px;border-bottom:1px solid var(--border)}.order-card p{margin:8px 0;color:var(--sub)}.empty-state{padding:16px;color:var(--muted)}#account-orders{margin:16px 0}.dash-header{gap:8px;flex-wrap:wrap;height:auto;min-height:68px;padding-top:12px;padding-bottom:12px}.dash-search{min-width:0}#smm-qty{width:100%}</style><style>[hidden]{display:none!important}.two-col{grid-template-columns:minmax(0,1fr) 340px}.two-col>*{min-width:0}.field select,.field input,.field textarea{min-width:0;max-width:100%;width:100%}.price-calc-note{overflow-wrap:anywhere}#smm-qty{background:#111118;color:#fff;border:1px solid var(--border);padding:12px;border-radius:10px}@media(max-width:900px){.two-col{grid-template-columns:minmax(0,1fr)}}@media(max-width:600px){.money-bar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}.money-chip{width:auto}.dash-search{width:100%}}</style><style>.svc-content-scroll{padding-bottom:116px!important}#page-home{padding-bottom:116px}</style><meta name="adpulse-site-verification" content="ap_09e44fa626e2a242432f5fe9"><link rel="stylesheet" href="/assets/customer-workspace.css?v=20261006c"><link rel="manifest" href="/app/manifest.webmanifest"><meta name="theme-color" content="#101116"><link rel="apple-touch-icon" href="/app/icon.png"><script src="/assets/install-app.js?v=20261007-media2" defer></script><link rel="stylesheet" href="/assets/site-theme.css?v=20261006e"><script src="/assets/site-icons.js?v=20261006d" defer></script><link rel="stylesheet" href="/assets/deposit.css?v=20261006e"><link rel="stylesheet" href="/assets/tdc-followup.css?v=20261007-media2"><script src="/assets/tdc-followup.js?v=20261007-media2" defer></script><script src="/assets/branding.js?v=20261008" defer></script></head>
+<style>#app-gate,.install-sheet{display:none!important}#app-gate.tdc-locked{display:flex!important}.order-card{padding:16px;border-bottom:1px solid var(--border)}.order-card p{margin:8px 0;color:var(--sub)}.empty-state{padding:16px;color:var(--muted)}#account-orders{margin:16px 0}.dash-header{gap:8px;flex-wrap:wrap;height:auto;min-height:68px;padding-top:12px;padding-bottom:12px}.dash-search{min-width:0}#smm-qty{width:100%}</style><style>[hidden]{display:none!important}.two-col{grid-template-columns:minmax(0,1fr) 340px}.two-col>*{min-width:0}.field select,.field input,.field textarea{min-width:0;max-width:100%;width:100%}.price-calc-note{overflow-wrap:anywhere}#smm-qty{background:#111118;color:#fff;border:1px solid var(--border);padding:12px;border-radius:10px}@media(max-width:900px){.two-col{grid-template-columns:minmax(0,1fr)}}@media(max-width:600px){.money-bar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}.money-chip{width:auto}.dash-search{width:100%}}</style><style>.svc-content-scroll{padding-bottom:116px!important}#page-home{padding-bottom:116px}</style><meta name="adpulse-site-verification" content="ap_09e44fa626e2a242432f5fe9"><link rel="stylesheet" href="/assets/customer-workspace.css?v=20261011-master"><link rel="manifest" href="/app/manifest.webmanifest"><meta name="theme-color" content="#101116"><link rel="apple-touch-icon" href="/app/icon.png"><script src="/assets/install-app.js?v=20261011-master" defer></script><link rel="stylesheet" href="/assets/site-theme.css?v=20261011-master"><script src="/assets/site-icons.js?v=20261011-master" defer></script><link rel="stylesheet" href="/assets/deposit.css?v=20261011-master"><link rel="stylesheet" href="/assets/tdc-followup.css?v=20261011-master"><link rel="stylesheet" href="/assets/music-studio.css?v=20261017-music7"><script src="/assets/tdc-followup.js?v=20261017-anyimage" defer></script><script src="/assets/branding.js?v=20261011-master" defer></script></head>
 <body>
 
 <div id="app-gate">
@@ -1130,8 +1130,21 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
       <h2 style="margin:10px 0">Sign in with Face ID/Touch ID</h2>
       <p style="color:#c7c7cc;max-width:280px">Use Face or Touch ID for faster and easier account access.</p>
       <div class="ag-actions">
-        <button class="ag-blue" onclick="agEnter()">Use Face or Touch ID</button>
+        <button class="ag-blue" onclick="pkBio()">Use Face or Touch ID</button>
         <button class="ag-grey" onclick="agEnter()">Not now</button>
+      </div>
+    </div>
+  </section>
+  <section class="ag-screen" id="ag-lock">
+    <div class="ag-center">
+      <div style="font-size:30px;color:#4da3ff">🔒</div>
+      <div class="ag-brand" style="font-size:22px;margin-top:10px">TDC TECH</div>
+      <p id="ag-lock-msg" style="color:#c7c7cc;max-width:300px;margin-top:10px">Unlock with your saved passkey.</p>
+      <div class="ag-actions">
+        <button class="ag-blue" onclick="tdcAppUnlock()">Unlock with Face / Touch ID</button>
+        <button class="ag-grey" onclick="tdcAppSetup()">Set up Face / Touch ID</button>
+        <button class="ag-grey" onclick="location.href='/login?app=1'">Use password</button>
+        <button class="ag-grey" style="background:none;color:#8e8e93" onclick="agEnter()">Skip for now</button>
       </div>
     </div>
   </section>
@@ -1945,191 +1958,226 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
           <button class="svc-tab" onclick="switchTab('music',4,this)">Order History</button>
         </div>
         <div class="svc-content-scroll">
-          <!-- Tab 0: Distribute -->
+          <!-- Tab 0: Distribute (release studio wizard) -->
           <div id="music-tab-0">
-            <div class="two-col">
-              <div style="display:flex;flex-direction:column;gap:14px">
-                <div class="card">
-                  <div class="card-hd"><h3>Release metadata</h3></div>
-                  <div class="form-grid form-grid-2">
-                    <div class="field"><label>Track / Album title</label><input type="text" placeholder="e.g. High Experience"></div>
-                    <div class="field"><label>Primary artist name</label><input type="text" placeholder="Artist name as on DSPs"></div>
-                    <div class="field"><label>Genre</label><select><option>Afrobeats</option><option>Hip-Hop / Rap</option><option>R&B / Soul</option><option>Pop</option><option>Electronic</option><option>Gospel</option><option>Drill</option></select></div>
-                    <div class="field"><label>Release type</label><select><option>Single</option><option>EP</option><option>Album</option><option>Mixtape</option></select></div>
-                    <div class="field"><label>Release date</label><input type="date"></div>
-                    <div class="field"><label>Language</label><select><option>English</option><option>French</option><option>Yoruba</option><option>Swahili</option><option>Spanish</option></select></div>
-                    <div class="field" style="grid-column:1/-1"><label>Featured artists (optional)</label><input type="text" placeholder="ft. Artist Name"></div>
-                    <div class="field"><label>ISRC code</label><input type="text" placeholder="Leave blank to auto-generate"><p class="field-note">We'll generate a free ISRC if left blank</p></div>
-                    <div class="field"><label>UPC / EAN code</label><input type="text" placeholder="Leave blank to auto-generate"></div>
-                  </div>
+            <div class="ms-shell" id="music-studio">
+              <div class="ms-head">
+                <div>
+                  <p class="ms-eyebrow">Release studio</p>
+                  <h3 class="ms-title">Distribute a new release</h3>
+                  <p class="ms-sub">Singles, albums and music videos delivered to 150+ stores with ISRC, UPC and royalty collection.</p>
                 </div>
-                <div class="card">
-                  <div class="card-hd"><h3>Upload audio & artwork</h3></div>
-                  <div style="display:flex;flex-direction:column;gap:10px">
-                    <div class="upload-zone"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><p>Upload audio file</p><span>.WAV or .FLAC · Minimum 16-bit, 44.1kHz</span></div>
-                    <div class="upload-zone"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><p>Upload album artwork</p><span>3000×3000px JPG/PNG · Square required</span></div>
-                  </div>
-                </div>
-                <div class="card">
-                  <div class="card-hd"><h3>Select DSP outlets</h3></div>
-                  <div class="platform-grid">
-                    <div class="platform-chip sel" onclick="toggleChip(this)">🟢 Spotify</div>
-                    <div class="platform-chip sel" onclick="toggleChip(this)">🍎 Apple Music</div>
-                    <div class="platform-chip sel" onclick="toggleChip(this)">▶️ YouTube Music</div>
-                    <div class="platform-chip sel" onclick="toggleChip(this)">🎵 TikTok</div>
-                    <div class="platform-chip" onclick="toggleChip(this)">💧 Tidal</div>
-                    <div class="platform-chip" onclick="toggleChip(this)">🛒 Amazon Music</div>
-                    <div class="platform-chip" onclick="toggleChip(this)">📻 Deezer</div>
-                    <div class="platform-chip sel" onclick="toggleChip(this)">🌍 + 143 more</div>
-                  </div>
+                <div class="price-calc ms-price">
+                  <p class="price-calc-label">DISTRIBUTION FEE</p>
+                  <p class="price-calc-amount" id="ms-price-value">€15.00</p>
+                  <p class="price-calc-note" id="ms-price-note">Per release · 150+ DSPs · ISRC &amp; UPC included</p>
                 </div>
               </div>
-              <div style="display:flex;flex-direction:column;gap:14px">
-                <div class="price-calc">
-                  <p class="price-calc-label">DISTRIBUTION FEE</p>
-                  <p class="price-calc-amount">€15.00</p>
-                  <p class="price-calc-note">Single release · 150+ DSPs · ISRC included</p>
-                </div>
-                <div class="card">
-                  <p class="card-sub">WHAT'S INCLUDED</p>
-                  <div class="steps">
-                    <div class="step"><div class="step-num">✓</div><div class="step-text"><strong>ISRC & UPC generation</strong><span>Auto-assigned on submission</span></div></div>
-                    <div class="step"><div class="step-num">✓</div><div class="step-text"><strong>150+ DSP distribution</strong><span>Spotify, Apple, TikTok & more</span></div></div>
-                    <div class="step"><div class="step-num">✓</div><div class="step-text"><strong>Royalty collection</strong><span>Monthly payouts to wallet</span></div></div>
-                    <div class="step"><div class="step-num">✓</div><div class="step-text"><strong>Artist profile tickets</strong><span>Spotify for Artists + YouTube OAC</span></div></div>
-                  </div>
-                </div>
-                <button class="btn-primary btn-full" onclick="submitDistribution()"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Distribute release — €15.00</button>
+              <ol class="steps ms-steps" id="ms-steps" aria-label="Release steps"></ol>
+              <div id="ms-panel" class="ms-panel"></div>
+              <div class="ms-nav">
+                <button type="button" class="btn-secondary" id="ms-back">Back</button>
+                <span class="ms-nav-hint" id="ms-hint"></span>
+                <button type="button" class="btn-primary" id="ms-next">Continue</button>
               </div>
             </div>
           </div>
 
           <!-- Tab 1: Artist Profiles -->
           <div id="music-tab-1" style="display:none">
-            <div style="display:flex;flex-direction:column;gap:14px">
-              <div class="ticket-card">
-                <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
-                  <div>
-                    <h4>🎧 Spotify for Artists Claim</h4>
-                    <p>Submit URI to claim and verify your Spotify artist profile</p>
-                  </div>
-                  <span class="status-badge status-review">In Progress</span>
+            <div class="ms-shell">
+              <div class="ms-head">
+                <div>
+                  <p class="ms-eyebrow">Artist profiles</p>
+                  <h3 class="ms-title">Claim and verify your artist profiles</h3>
+                  <p class="ms-sub">Open a card, add your links and upload proof. Every request becomes a support ticket you can follow in live chat.</p>
                 </div>
-                <div class="form-grid form-grid-2" style="margin-top:12px">
-                  <div class="field"><label>Spotify Artist URI</label><input type="text" placeholder="spotify:artist:XXXXXXXX"></div>
-                  <div class="field"><label>Account email to transfer to</label><input type="email" placeholder="your@email.com"></div>
-                  <div class="field"><label>Instagram profile link</label><input type="url" placeholder="https://instagram.com/..."></div>
-                  <div class="field"><label>Facebook / official website</label><input type="url" placeholder="https://..."></div>
-                </div>
-                <div class="ticket-status-track" style="margin-top:14px">
-                  <div class="ticket-step done"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Ticket Submitted</div>
-                  <span class="ticket-arrow">›</span>
-                  <div class="ticket-step active"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>Sent to Spotify</div>
-                  <span class="ticket-arrow">›</span>
-                  <div class="ticket-step"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>Access Granted</div>
-                </div>
-                <button class="btn-secondary" style="margin-top:12px"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Submit Spotify ticket</button>
               </div>
 
-              <div class="ticket-card" style="background:linear-gradient(135deg,rgba(239,68,68,.07),rgba(168,85,247,.06));border-color:rgba(239,68,68,.2)">
-                <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
-                  <div>
-                    <h4>▶️ YouTube Official Artist Channel (OAC)</h4>
-                    <p>Merge Topic channel into Official Artist Channel with music note badge</p>
+              <details class="ms-acc">
+                <summary>
+                  <span class="ms-acc-ico">🎧</span>
+                  <span class="ms-acc-t"><strong>Spotify for Artists</strong><small>Claim and verify your Spotify artist profile</small></span>
+                  <span class="ms-acc-chev">⌄</span>
+                </summary>
+                <form class="ms-acc-body ms-ticket-form" data-subject="Spotify for Artists claim" data-doc-key="spotify">
+                  <div class="form-grid form-grid-2">
+                    <div class="field"><label>Spotify artist link or URI</label><input type="text" data-label="Spotify artist link" placeholder="https://open.spotify.com/artist/… or spotify:artist:…"></div>
+                    <div class="field"><label>Contact email</label><input type="email" data-label="Contact email" placeholder="you@email.com"></div>
+                    <div class="field"><label>Instagram</label><input type="url" data-label="Instagram" placeholder="https://instagram.com/…"></div>
+                    <div class="field"><label>Facebook / official website</label><input type="url" data-label="Facebook / website" placeholder="https://…"></div>
                   </div>
-                  <span class="status-badge status-pending">Not Started</span>
+                  <div class="field" style="margin-top:12px">
+                    <label>Proof document or screenshot (optional)</label>
+                    <div class="upload-zone ms-drop" data-ms-doc="spotify" tabindex="0" role="button">
+                      <svg viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg>
+                      <p>Upload proof</p><span>JPG, PNG, WebP, PDF or DOCX · up to 100 MB</span>
+                      <input type="file" hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.docx">
+                    </div>
+                    <ul class="ms-files" data-ms-files="spotify"></ul>
+                  </div>
+                  <button type="submit" class="btn-primary">Submit claim ticket</button>
+                  <p class="ms-form-note">Verification usually completes within 3–7 days. We reply in the support chat with the outcome.</p>
+                </form>
+              </details>
+
+              <details class="ms-acc">
+                <summary>
+                  <span class="ms-acc-ico">▶️</span>
+                  <span class="ms-acc-t"><strong>YouTube Official Artist Channel (OAC)</strong><small>Merge your Topic channel into an Official Artist Channel</small></span>
+                  <span class="ms-acc-chev">⌄</span>
+                </summary>
+                <form class="ms-acc-body ms-ticket-form" data-subject="YouTube OAC claim" data-doc-key="youtube">
+                  <div class="form-grid form-grid-2">
+                    <div class="field"><label>YouTube Topic channel URL</label><input type="url" data-label="YouTube Topic channel" placeholder="https://youtube.com/channel/…"></div>
+                    <div class="field"><label>Artist / personal channel URL</label><input type="url" data-label="Artist channel" placeholder="https://youtube.com/@YourArtist"></div>
+                    <div class="field"><label>Contact email</label><input type="email" data-label="Contact email" placeholder="you@email.com"></div>
+                    <div class="field"><label>Instagram / social handle</label><input type="text" data-label="Social handle" placeholder="@yourartist"></div>
+                    <div class="field" style="grid-column:1/-1"><label>Distributed topic video links</label><input type="text" data-label="Topic video links" placeholder="Paste up to 3 video URLs, separated by commas"></div>
+                    <div class="field" style="grid-column:1/-1"><label>Notes</label><input type="text" data-label="Notes" placeholder="Anything we should know about the channel"></div>
+                  </div>
+                  <div class="field" style="margin-top:12px">
+                    <label>Proof document or screenshot (optional)</label>
+                    <div class="upload-zone ms-drop" data-ms-doc="youtube" tabindex="0" role="button">
+                      <svg viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg>
+                      <p>Upload proof</p><span>JPG, PNG, WebP, PDF or DOCX · up to 100 MB</span>
+                      <input type="file" hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.docx">
+                    </div>
+                    <ul class="ms-files" data-ms-files="youtube"></ul>
+                  </div>
+                  <button type="submit" class="btn-primary">Submit OAC ticket</button>
+                  <p class="ms-form-note">OAC merges require at least one distributed release on the Topic channel.</p>
+                </form>
+              </details>
+
+              <div class="ms-head" style="margin-top:6px">
+                <div>
+                  <p class="ms-eyebrow">Other platforms</p>
+                  <h3 class="ms-title">Claim profile on other platforms</h3>
+                  <p class="ms-sub">Apple Music, Amazon Music, TikTok, Instagram, Facebook or any other platform — open a card to send the claim.</p>
                 </div>
-                <div class="form-grid" style="margin-top:12px">
-                  <div class="field"><label>YouTube Topic Channel URL</label><input type="url" placeholder="https://youtube.com/channel/..."></div>
-                  <div class="field"><label>YouTube Personal / Artist Channel URL</label><input type="url" placeholder="https://youtube.com/@YourArtist"></div>
-                  <div class="field"><label>Distributed Topic Video URL #1</label><input type="url" placeholder="https://youtube.com/watch?v=..."></div>
-                  <div class="field"><label>Distributed Topic Video URL #2</label><input type="url" placeholder="https://youtube.com/watch?v=..."></div>
-                  <div class="field"><label>Distributed Topic Video URL #3</label><input type="url" placeholder="https://youtube.com/watch?v=..."></div>
-                </div>
-                <div class="ticket-status-track" style="margin-top:14px">
-                  <div class="ticket-step"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>Ticket Submitted</div>
-                  <span class="ticket-arrow">›</span>
-                  <div class="ticket-step"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>Sent to YouTube</div>
-                  <span class="ticket-arrow">›</span>
-                  <div class="ticket-step"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>OAC Badge Active</div>
-                </div>
-                <button class="btn-secondary" style="margin-top:12px"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Submit YouTube OAC ticket</button>
+              </div>
+
+              <div class="ms-acc-grid" id="ms-other-platforms">
+                <details class="ms-acc ms-acc-sm">
+                  <summary><span class="ms-acc-ico">🍎</span><span class="ms-acc-t"><strong>Apple Music</strong><small>Apple Music for Artists</small></span><span class="ms-acc-chev">⌄</span></summary>
+                  <form class="ms-acc-body ms-ticket-form" data-subject="Profile claim — Apple Music" data-doc-key="apple">
+                    <div class="form-grid">
+                      <div class="field"><label>Profile link</label><input type="url" data-label="Apple Music profile link" placeholder="https://music.apple.com/artist/…"></div>
+                      <div class="field"><label>Artist name</label><input type="text" data-label="Artist name" placeholder="Your artist name"></div>
+                      <div class="field"><label>Email</label><input type="email" data-label="Email" placeholder="you@email.com"></div>
+                      <div class="field"><label>Notes</label><textarea data-label="Notes" rows="2" placeholder="Label, distributor, previous claims"></textarea></div>
+                    </div>
+                    <div class="upload-zone ms-drop" data-ms-doc="apple" tabindex="0" role="button"><svg viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg><p>Screenshot (optional)</p><span>JPG, PNG or PDF</span><input type="file" hidden accept=".jpg,.jpeg,.png,.webp,.pdf"></div>
+                    <ul class="ms-files" data-ms-files="apple"></ul>
+                    <button type="submit" class="btn-primary">Send claim</button>
+                  </form>
+                </details>
+
+                <details class="ms-acc ms-acc-sm">
+                  <summary><span class="ms-acc-ico">🛒</span><span class="ms-acc-t"><strong>Amazon Music</strong><small>Amazon Music for Artists</small></span><span class="ms-acc-chev">⌄</span></summary>
+                  <form class="ms-acc-body ms-ticket-form" data-subject="Profile claim — Amazon Music" data-doc-key="amazon">
+                    <div class="form-grid">
+                      <div class="field"><label>Profile link</label><input type="url" data-label="Amazon Music profile link" placeholder="https://music.amazon.com/artists/…"></div>
+                      <div class="field"><label>Artist name</label><input type="text" data-label="Artist name" placeholder="Your artist name"></div>
+                      <div class="field"><label>Email</label><input type="email" data-label="Email" placeholder="you@email.com"></div>
+                      <div class="field"><label>Notes</label><textarea data-label="Notes" rows="2" placeholder="Label, distributor, previous claims"></textarea></div>
+                    </div>
+                    <div class="upload-zone ms-drop" data-ms-doc="amazon" tabindex="0" role="button"><svg viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg><p>Screenshot (optional)</p><span>JPG, PNG or PDF</span><input type="file" hidden accept=".jpg,.jpeg,.png,.webp,.pdf"></div>
+                    <ul class="ms-files" data-ms-files="amazon"></ul>
+                    <button type="submit" class="btn-primary">Send claim</button>
+                  </form>
+                </details>
+
+                <details class="ms-acc ms-acc-sm">
+                  <summary><span class="ms-acc-ico">🎵</span><span class="ms-acc-t"><strong>TikTok</strong><small>TikTok for Artists</small></span><span class="ms-acc-chev">⌄</span></summary>
+                  <form class="ms-acc-body ms-ticket-form" data-subject="Profile claim — TikTok" data-doc-key="tiktok">
+                    <div class="form-grid">
+                      <div class="field"><label>Profile link</label><input type="url" data-label="TikTok profile link" placeholder="https://tiktok.com/@artist"></div>
+                      <div class="field"><label>Artist name</label><input type="text" data-label="Artist name" placeholder="Your artist name"></div>
+                      <div class="field"><label>Email</label><input type="email" data-label="Email" placeholder="you@email.com"></div>
+                      <div class="field"><label>Notes</label><textarea data-label="Notes" rows="2" placeholder="Sound page, previous claims"></textarea></div>
+                    </div>
+                    <div class="upload-zone ms-drop" data-ms-doc="tiktok" tabindex="0" role="button"><svg viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg><p>Screenshot (optional)</p><span>JPG, PNG or PDF</span><input type="file" hidden accept=".jpg,.jpeg,.png,.webp,.pdf"></div>
+                    <ul class="ms-files" data-ms-files="tiktok"></ul>
+                    <button type="submit" class="btn-primary">Send claim</button>
+                  </form>
+                </details>
+
+                <details class="ms-acc ms-acc-sm">
+                  <summary><span class="ms-acc-ico">📸</span><span class="ms-acc-t"><strong>Instagram</strong><small>Music on Instagram / Facebook</small></span><span class="ms-acc-chev">⌄</span></summary>
+                  <form class="ms-acc-body ms-ticket-form" data-subject="Profile claim — Instagram" data-doc-key="instagram">
+                    <div class="form-grid">
+                      <div class="field"><label>Profile link</label><input type="url" data-label="Instagram profile link" placeholder="https://instagram.com/artist"></div>
+                      <div class="field"><label>Artist name</label><input type="text" data-label="Artist name" placeholder="Your artist name"></div>
+                      <div class="field"><label>Email</label><input type="email" data-label="Email" placeholder="you@email.com"></div>
+                      <div class="field"><label>Notes</label><textarea data-label="Notes" rows="2" placeholder="Professional account, music sticker access"></textarea></div>
+                    </div>
+                    <div class="upload-zone ms-drop" data-ms-doc="instagram" tabindex="0" role="button"><svg viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg><p>Screenshot (optional)</p><span>JPG, PNG or PDF</span><input type="file" hidden accept=".jpg,.jpeg,.png,.webp,.pdf"></div>
+                    <ul class="ms-files" data-ms-files="instagram"></ul>
+                    <button type="submit" class="btn-primary">Send claim</button>
+                  </form>
+                </details>
+
+                <details class="ms-acc ms-acc-sm">
+                  <summary><span class="ms-acc-ico">📘</span><span class="ms-acc-t"><strong>Facebook</strong><small>Facebook artist page &amp; music</small></span><span class="ms-acc-chev">⌄</span></summary>
+                  <form class="ms-acc-body ms-ticket-form" data-subject="Profile claim — Facebook" data-doc-key="facebook">
+                    <div class="form-grid">
+                      <div class="field"><label>Profile link</label><input type="url" data-label="Facebook profile link" placeholder="https://facebook.com/artist"></div>
+                      <div class="field"><label>Artist name</label><input type="text" data-label="Artist name" placeholder="Your artist name"></div>
+                      <div class="field"><label>Email</label><input type="email" data-label="Email" placeholder="you@email.com"></div>
+                      <div class="field"><label>Notes</label><textarea data-label="Notes" rows="2" placeholder="Page ID, previous claims"></textarea></div>
+                    </div>
+                    <div class="upload-zone ms-drop" data-ms-doc="facebook" tabindex="0" role="button"><svg viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg><p>Screenshot (optional)</p><span>JPG, PNG or PDF</span><input type="file" hidden accept=".jpg,.jpeg,.png,.webp,.pdf"></div>
+                    <ul class="ms-files" data-ms-files="facebook"></ul>
+                    <button type="submit" class="btn-primary">Send claim</button>
+                  </form>
+                </details>
+
+                <details class="ms-acc ms-acc-sm">
+                  <summary><span class="ms-acc-ico">🔗</span><span class="ms-acc-t"><strong>Other platform</strong><small>Deezer, Tidal, Audiomack and more</small></span><span class="ms-acc-chev">⌄</span></summary>
+                  <form class="ms-acc-body ms-ticket-form" data-subject="Profile claim — Other platform" data-doc-key="other">
+                    <div class="form-grid">
+                      <div class="field"><label>Platform name</label><input type="text" data-label="Platform" placeholder="e.g. Deezer"></div>
+                      <div class="field"><label>Profile link</label><input type="url" data-label="Profile link" placeholder="https://…"></div>
+                      <div class="field"><label>Artist name</label><input type="text" data-label="Artist name" placeholder="Your artist name"></div>
+                      <div class="field"><label>Email</label><input type="email" data-label="Email" placeholder="you@email.com"></div>
+                      <div class="field"><label>Notes</label><textarea data-label="Notes" rows="2" placeholder="Tell us what you need"></textarea></div>
+                    </div>
+                    <div class="upload-zone ms-drop" data-ms-doc="other" tabindex="0" role="button"><svg viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg><p>Screenshot (optional)</p><span>JPG, PNG or PDF</span><input type="file" hidden accept=".jpg,.jpeg,.png,.webp,.pdf"></div>
+                    <ul class="ms-files" data-ms-files="other"></ul>
+                    <button type="submit" class="btn-primary">Send claim</button>
+                  </form>
+                </details>
               </div>
             </div>
           </div>
 
-          <!-- Tab 2: Project Tracker -->
+          <!-- Tab 2: Project Tracker (release catalog) -->
           <div id="music-tab-2" style="display:none">
-            <div style="display:flex;flex-direction:column;gap:12px">
-              <div class="field" style="max-width:280px"><label>Select release</label><select><option>High Experience (Single)</option><option>Shawty (Single)</option><option>Dream (EP)</option></select></div>
-              <div class="two-col">
-                <div style="display:flex;flex-direction:column;gap:12px">
-                  <div class="card">
-                    <div class="card-hd"><h3>High Experience</h3><span class="status-badge status-done">Distributed</span></div>
-                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
-                      <div><p class="metric-lbl">STREAMS</p><p style="font-size:1rem;font-weight:800">93,412</p></div>
-                      <div><p class="metric-lbl">SAVES</p><p style="font-size:1rem;font-weight:800">4,291</p></div>
-                      <div><p class="metric-lbl">PLAYLISTS</p><p style="font-size:1rem;font-weight:800">38</p></div>
-                    </div>
-                  </div>
-                  <div class="card">
-                    <p class="card-sub">DSP BREAKDOWN</p>
-                    <div class="dsp-chart">
-                      <div class="dsp-row"><span class="dsp-name">Spotify</span><div class="dsp-bar-wrap"><div class="dsp-bar" style="width:72%"></div></div><span class="dsp-pct">72%</span></div>
-                      <div class="dsp-row"><span class="dsp-name">Apple Music</span><div class="dsp-bar-wrap"><div class="dsp-bar" style="width:14%"></div></div><span class="dsp-pct">14%</span></div>
-                      <div class="dsp-row"><span class="dsp-name">YouTube Music</span><div class="dsp-bar-wrap"><div class="dsp-bar" style="width:8%"></div></div><span class="dsp-pct">8%</span></div>
-                      <div class="dsp-row"><span class="dsp-name">TikTok</span><div class="dsp-bar-wrap"><div class="dsp-bar" style="width:4%"></div></div><span class="dsp-pct">4%</span></div>
-                      <div class="dsp-row"><span class="dsp-name">Others</span><div class="dsp-bar-wrap"><div class="dsp-bar" style="width:2%"></div></div><span class="dsp-pct">2%</span></div>
-                    </div>
-                  </div>
-                </div>
-                <div class="card">
-                  <p class="card-sub">DELIVERY STATUS</p>
-                  <div class="timeline" style="margin-top:6px">
-                    <div class="tl-item"><div class="tl-left"><div class="tl-dot done"></div><div class="tl-line"></div></div><div class="tl-content"><p class="tl-title">Release submitted</p><p class="tl-desc">20 Sep 2026</p></div></div>
-                    <div class="tl-item"><div class="tl-left"><div class="tl-dot done"></div><div class="tl-line"></div></div><div class="tl-content"><p class="tl-title">DSP review passed</p><p class="tl-desc">22 Sep 2026</p></div></div>
-                    <div class="tl-item"><div class="tl-left"><div class="tl-dot done"></div><div class="tl-line"></div></div><div class="tl-content"><p class="tl-title">Live on Spotify & Apple Music</p><p class="tl-desc">25 Sep 2026</p></div></div>
-                    <div class="tl-item"><div class="tl-left"><div class="tl-dot active"></div></div><div class="tl-content"><p class="tl-title">Royalties accruing</p><p class="tl-desc">Monthly payout cycle</p></div></div>
-                  </div>
+            <div class="ms-shell">
+              <div class="ms-head">
+                <div>
+                  <p class="ms-eyebrow">Project tracker</p>
+                  <h3 class="ms-title">Your music catalog</h3>
+                  <p class="ms-sub">Every release with delivery status, streams, DSP split, smart link and ISRC/UPC codes. Tap a cover for the full report.</p>
                 </div>
               </div>
+              <div id="ms-catalog" aria-live="polite"></div>
             </div>
           </div>
 
           <!-- Tab 3: Royalties -->
           <div id="music-tab-3" style="display:none">
-            <div class="two-col">
-              <div style="display:flex;flex-direction:column;gap:14px">
-                <div class="card">
-                  <div class="card-hd"><h3>Royalty earnings breakdown</h3></div>
-                  <div class="dsp-chart" style="margin-bottom:14px">
-                    <div class="dsp-row"><span class="dsp-name">Spotify</span><div class="dsp-bar-wrap"><div class="dsp-bar" style="width:65%"></div></div><span class="dsp-pct">€24.83</span></div>
-                    <div class="dsp-row"><span class="dsp-name">Apple Music</span><div class="dsp-bar-wrap"><div class="dsp-bar" style="width:18%"></div></div><span class="dsp-pct">€6.88</span></div>
-                    <div class="dsp-row"><span class="dsp-name">VEVO / YouTube</span><div class="dsp-bar-wrap"><div class="dsp-bar" style="width:10%"></div></div><span class="dsp-pct">€3.82</span></div>
-                    <div class="dsp-row"><span class="dsp-name">TikTok</span><div class="dsp-bar-wrap"><div class="dsp-bar" style="width:7%"></div></div><span class="dsp-pct">€2.67</span></div>
-                  </div>
-                  <div style="display:flex;gap:8px">
-                    <button class="btn-secondary"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download PDF</button>
-                    <button class="btn-secondary"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download CSV</button>
-                  </div>
-                </div>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:14px">
-                <div class="price-calc">
-                  <p class="price-calc-label">TOTAL ROYALTIES AVAILABLE</p>
-                  <p class="price-calc-amount">€38.20</p>
-                  <p class="price-calc-note">From 3 released tracks · Sep 2026</p>
-                </div>
-                <button class="btn-cyan btn-full" onclick="placeOrder('Royalty withdrawal to wallet',38.2)"><svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12l7 7 7-7"/></svg>Withdraw €38.20 to wallet</button>
-              </div>
+            <div class="ms-shell">
+              <div id="ms-royalties" aria-live="polite"></div>
             </div>
           </div>
 
           <!-- Tab 4: History -->
           <div id="music-tab-4" style="display:none">
-            <div class="txn-list">
-              <div class="txn-row"><div class="txn-left"><div class="txn-ic" style="background:rgba(168,85,247,.12)">🎵</div><div><p class="txn-name">EP Distribution — "High Experience"</p><p class="txn-meta">Music · 25 Sep 2026</p></div></div><span class="txn-amt out">-€15.00</span></div>
-              <div class="txn-row"><div class="txn-left"><div class="txn-ic" style="background:rgba(168,85,247,.12)">🎵</div><div><p class="txn-name">Single — "Shawty"</p><p class="txn-meta">Music · 10 Aug 2026</p></div></div><span class="txn-amt out">-€15.00</span></div>
+            <div class="ms-shell">
+              <div id="ms-orders" aria-live="polite"></div>
             </div>
           </div>
         </div>
@@ -2703,6 +2751,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
             <section class="app-passcode-settings"><h3>Your TDC app</h3><p>Keep your music, orders and support close. Install the app, then set your device passcode below.</p><button type="button" class="btn-primary" data-app-install onclick="window.tdcInstallApp()">Download our app</button><p id="app-install-status" role="status"></p></section><div class="prof-list">
 <div class="prof-row" onclick="showProfSheet('email')"><div class="ico">✉️</div><div class="meta"><b>Account email</b><span id="profile-email-label">Your email</span></div><span class="chev">›</span></div>
 <div class="prof-row" onclick="showProfSheet('password')"><div class="ico">🔒</div><div class="meta"><b>Change password</b><span>Manage account security</span></div><span class="chev">›</span></div>
+<div class="prof-row" id="prof-passkeys-row" onclick="showProfSheet('passkeys');pkLoad()"><div class="ico">🔑</div><div class="meta"><b>Passkeys &amp; Face ID</b><span>Sign in with biometrics</span></div><span class="chev">›</span></div>
 <div class="prof-row" onclick="showProfSheet('edit')"><div class="ico">◐</div><div class="meta"><b>Appearance & timezone</b><span>Customize your profile preferences</span></div><span class="chev">›</span></div>
 <div class="prof-row" onclick="navTo('home')"><div class="ico">€</div><div class="meta"><b>Wallet & orders</b><span>Account currency: EUR</span></div><span class="chev">›</span></div>
 <div class="prof-row" onclick="navTo('chat')"><div class="ico">💬</div><div class="meta"><b>Live support</b><span>Your tickets and replies</span></div><span class="chev">›</span></div>
@@ -2733,6 +2782,15 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
             <div class="field"><label>New password</label><input id="password-new" type="password" autocomplete="new-password"></div>
             <div class="field"><label>Confirm</label><input id="password-confirm" type="password" autocomplete="new-password"></div>
             <button class="btn-primary btn-full" onclick="changeProfilePassword()">Update password</button>
+          </div>
+
+          <div id="prof-passkeys" class="prof-sheet">
+            <button class="svc-back-btn" onclick="showProfSheet('main')">‹ Back</button>
+            <h3 style="margin:8px 0 12px">Passkeys &amp; Face ID</h3>
+            <p style="color:var(--muted);font-size:.86rem;margin-bottom:12px">Sign in with Face ID, Touch ID, or Windows Hello instead of a password.</p>
+            <div id="pk-list" style="display:grid;gap:8px;margin-bottom:12px"></div>
+            <button class="btn-primary btn-full" id="pk-add-btn" onclick="pkRegister(false)">Add a passkey</button>
+            <p id="pk-note" style="display:none;color:var(--muted);font-size:.78rem;line-height:1.5;margin-top:10px"></p>
           </div>
 
           <div id="prof-admin" class="prof-sheet">
@@ -2881,13 +2939,11 @@ const PAGE_TITLES = {
 };
 
 function navTo(page){
-  // hide all pages
   document.querySelectorAll('.page-body, .svc-page').forEach(p=>{
     p.classList.remove('active');
     if(p.classList.contains('page-body')) p.style.display='none';
   });
   currentPage = page;
-  // show target
   const el = document.getElementById(PAGE_MAP[page]);
   if(!el) return;
   if(el.classList.contains('svc-page')){
@@ -2895,54 +2951,46 @@ function navTo(page){
   } else {
     el.style.display='block';
   }
-  // header
   const meta = PAGE_TITLES[page]||[page,''];
-  document.getElementById('dash-header-title').textContent = page==='home'? getGreeting()+', '+currentUser : meta[0];
-  document.getElementById('dash-header-sub').textContent = meta[1];
-  // sidebar active
-  document.querySelectorAll('.sb-link').forEach(l=>l.classList.remove('active'));
-  // scroll top
-  document.querySelector('.page-scroll').scrollTop = 0;
+  const titleEl = document.getElementById('dash-header-title');
+  if(titleEl) titleEl.textContent = page==='home'? getGreeting()+', '+currentUser : meta[0];
+  const subEl = document.getElementById('dash-header-sub');
+  if(subEl) subEl.textContent = meta[1];
+  document.querySelectorAll('.sb-link').forEach(l=>{
+    l.classList.remove('active');
+    const oc = l.getAttribute('onclick')||'';
+    if(oc.includes("'"+page+"'") || oc.includes('"'+page+'"')) l.classList.add('active');
+  });
+  document.querySelectorAll('.fn-item').forEach(b=>{
+    if(b.id==='fn-'+page) b.classList.add('active'); else b.classList.remove('active');
+  });
+  const sc = document.querySelector('.page-scroll');
+  if(sc) sc.scrollTop = 0;
+  // Service pages always land on their active tab (tab 0 by default).
+  if(el.classList.contains('svc-page') && typeof switchTab === 'function'){
+    const tabs = el.querySelectorAll('.svc-tab');
+    let active = Array.prototype.findIndex.call(tabs, t=>t.classList.contains('active'));
+    if(active < 0) active = 0;
+    if(tabs[active]) switchTab(page, active, tabs[active]);
+  }
 }
 
 function navToSvc(svc){ navTo(svc); }
 
 /* ════ TAB SWITCHING ════ */
-function switchTab(page, idx, btn){
-  // hide all tab contents for this page
-  const prefix = page.replace(/-/g,'_');
-  let i=0;
-  while(true){
-    const el = document.getElementById(prefix+'-tab-'+i) || document.getElementById(page+'-tab-'+i) || document.getElementById(page.replace(/-/g,'')+'-tab-'+i);
-    if(!el && i>20) break;
-    if(el) el.style.display = i===idx?'block':'none';
-    i++;
-  }
-  // Also try direct IDs
-  for(let j=0;j<=10;j++){
-    const ids = [page+'-tab-'+j, page.replace(/-/g,'-')+'-tab-'+j];
-    ids.forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display=j===idx?'block':'none'; });
-  }
-  if(btn){
-    btn.closest('.svc-tabs').querySelectorAll('.svc-tab').forEach(t=>t.classList.remove('active'));
-    btn.classList.add('active');
-  }
-}
-
-/* Correct tab IDs follow pattern: page.replace(/-/g,'-')+'-tab-'+idx
-   but note we used page as prefix in id attrs, so let's do a universal find: */
 function switchTab(pageKey, idx, btn){
   const pageEl = document.getElementById(PAGE_MAP[pageKey]);
   if(!pageEl) return;
-  const contents = pageEl.querySelectorAll('[id$="-tab-0"],[id*="-tab-1"],[id*="-tab-2"],[id*="-tab-3"],[id*="-tab-4"]');
-  // Better: find by prefix
-  let i=0;
-  while(i<=10){
-    const el = document.getElementById(pageKey.replace('-','_')+'-tab-'+i) ||
-               document.getElementById(pageKey+'-tab-'+i);
-    if(!el){ i++; continue; }
+  const prefixes = [pageKey.replace(/-/g,'_'), pageKey];
+  let found = 0;
+  for(let i=0;i<=12;i++){
+    let el = null;
+    for(const prefix of prefixes){
+      if(!el) el = document.getElementById(prefix+'-tab-'+i);
+    }
+    if(!el){ if(found) break; continue; }
     el.style.display = i===idx?'block':'none';
-    i++;
+    found++;
   }
   if(btn){
     const tabsEl = btn.closest('.svc-tabs');
@@ -2981,41 +3029,6 @@ const FN_PAGE_MAP = {
 };
 function fnNav(page){
   navTo(page);
-  // update active state
-  document.querySelectorAll('.fn-item').forEach(b=>b.classList.remove('active'));
-  const btn = document.getElementById('fn-'+page);
-  if(btn) btn.classList.add('active');
-}
-// Keep float nav in sync with any sidebar nav clicks
-const _origNavTo = window.navTo;
-function navTo(page){
-  // run the original logic inline (since it's defined below, we just do it here)
-  document.querySelectorAll('.page-body, .svc-page').forEach(p=>{
-    p.classList.remove('active');
-    if(p.classList.contains('page-body')) p.style.display='none';
-  });
-  currentPage = page;
-  const el = document.getElementById(PAGE_MAP[page]);
-  if(!el) return;
-  if(el.classList.contains('svc-page')){
-    el.classList.add('active');
-  } else {
-    el.style.display='block';
-  }
-  const meta = PAGE_TITLES[page]||[page,''];
-  document.getElementById('dash-header-title').textContent = page==='home'? getGreeting()+', '+currentUser : meta[0];
-  document.getElementById('dash-header-sub').textContent = meta[1];
-  document.querySelectorAll('.sb-link').forEach(l=>{
-    l.classList.remove('active');
-    const oc = l.getAttribute('onclick')||'';
-    if(oc.includes("'"+page+"'") || oc.includes('"'+page+'"')) l.classList.add('active');
-  });
-  const sc = document.querySelector('.page-scroll');
-  if(sc) sc.scrollTop = 0;
-  // sync float nav
-  document.querySelectorAll('.fn-item').forEach(b=>b.classList.remove('active'));
-  const fnBtn = document.getElementById('fn-'+page);
-  if(fnBtn) fnBtn.classList.add('active');
 }
 function openTopup(){ document.getElementById('topup-modal').classList.add('open'); updateTopupFields(); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
@@ -3129,7 +3142,8 @@ function agTap(k){
   agPad();
 }
 function agEnter(){
-  document.getElementById('app-gate').classList.add('hide');
+  const g=document.getElementById('app-gate');
+  if(g){g.classList.remove('tdc-locked');g.classList.add('hide');}
   launchDashboard(currentUser);
 }
 function isAppMode(){
@@ -3280,6 +3294,108 @@ function tmCheckout(){
   tmRenderCart();
 }
 
+/* ── Passkeys (WebAuthn) ── */
+function pkB(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const b=atob(s),o=new Uint8Array(b.length);for(let i=0;i<b.length;i++)o[i]=b.charCodeAt(i);return o}
+function pkU(buf){const b=new Uint8Array(buf);let s='';for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+async function pkLoad(){
+  const box=document.getElementById('pk-list'); if(!box) return;
+  box.innerHTML='<p style="color:var(--muted);font-size:.86rem">Loading…</p>';
+  try{
+    const r=await apiPost('/api/webauthn.php',{action:'list'});
+    const list=r.passkeys||[];
+    box.innerHTML=list.length?list.map(p=>`<div class="prof-row" style="border:1px solid var(--border);border-radius:12px"><div class="ico">🔑</div><div class="meta"><b>${p.label?p.label:'Passkey'}</b><span>Added ${new Date(p.created_at).toLocaleDateString()}</span></div><button type="button" class="prof-btn-ghost" onclick="pkDelete('${p.id}')">Remove</button></div>`).join(''):'<p style="color:var(--muted);font-size:.86rem">No passkeys yet.</p>';
+  }catch(e){ box.innerHTML='<p style="color:var(--muted);font-size:.86rem">Could not load passkeys.</p>'; }
+}
+async function pkPlatformReady(){
+  if(!window.PublicKeyCredential) return false;
+  if(!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return false;
+  try{ return !!(await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); }catch(e){ return false; }
+}
+async function pkGate(){
+  const ok=await pkPlatformReady();
+  const row=document.getElementById('prof-passkeys-row');
+  const add=document.getElementById('pk-add-btn');
+  const note=document.getElementById('pk-note');
+  if(ok){
+    if(row) row.hidden=false;
+    if(add){ add.disabled=false; add.textContent='Add a passkey'; }
+    if(note) note.style.display='none';
+    return true;
+  }
+  if(row) row.hidden=true;
+  if(add){ add.disabled=true; add.textContent='Biometrics unavailable on this device'; }
+  if(note){ note.style.display='block'; note.textContent='This device has no Face ID, Touch ID or Windows Hello authenticator. Sign in with your password, or add a passkey from a supported device.'; }
+  return false;
+}
+let pkBusy=false;
+async function pkRegister(silent){
+  if(pkBusy) return false;
+  if(!(await pkGate())){ if(!silent) showToast('Biometric sign-in is not available on this device.','info'); return false; }
+  pkBusy=true;
+  const add=document.getElementById('pk-add-btn');
+  if(add) add.disabled=true;
+  try{
+    if(!window.PublicKeyCredential) throw new Error('This device does not support passkeys.');
+    const info=await apiPost('/api/webauthn.php',{action:'register_options'});
+    const o=info.options; o.challenge=pkB(o.challenge); o.user.id=pkB(o.user.id);
+    (o.excludeCredentials||[]).forEach(c=>c.id=pkB(c.id));
+    const cred=await navigator.credentials.create({publicKey:o});
+    if(!cred) throw new Error('Passkey creation was cancelled.');
+    await apiPost('/api/webauthn.php',{action:'register_verify',label:(navigator.platform||'This device'),credential:{id:cred.id,rawId:pkU(cred.rawId),type:cred.type,response:{clientDataJSON:pkU(cred.response.clientDataJSON),attestationObject:pkU(cred.response.attestationObject)}}});
+    if(!silent) showToast('Passkey added','success');
+    pkLoad();
+    return true;
+  }catch(e){
+    const msg=(e&&e.name==='NotAllowedError')?'Passkey creation was cancelled or timed out. Try again and approve the Face ID / Touch ID / Windows Hello prompt.':((e&&e.message)||'Could not add passkey');
+    if(!silent) showToast(msg,'info');
+    return false;
+  }finally{
+    pkBusy=false;
+    if(add) add.disabled=false;
+  }
+}
+async function pkDelete(id){
+  try{ await apiPost('/api/webauthn.php',{action:'delete',id}); showToast('Passkey removed','info'); pkLoad(); }
+  catch(e){ showToast(e.message||'Could not remove passkey','info'); }
+}
+async function pkBio(){ await pkRegister(true); agEnter(); }
+pkGate();
+
+/* ── App passkey lock (PWA standalone) ── */
+let tdcUnlocking=false;
+function tdcAppLock(){
+  const gate=document.getElementById('app-gate');
+  if(!gate||!document.getElementById('ag-lock')){agEnter();return;}
+  gate.classList.add('tdc-locked');
+  agShow('ag-splash');
+  setTimeout(tdcAppUnlock,350);
+}
+function tdcAppLockScreen(msg){
+  if(!document.getElementById('ag-lock')){agEnter();return;}
+  agShow('ag-lock');
+  const st=document.getElementById('ag-lock-msg');
+  if(st)st.textContent=msg||'Unlock with your saved passkey.';
+}
+async function tdcAppUnlock(){
+  if(tdcUnlocking)return;tdcUnlocking=true;
+  try{
+    if(!window.PublicKeyCredential)throw new Error('This device does not support passkeys. Use your password instead.');
+    const info=await apiPost('/api/webauthn.php',{action:'login_options'});
+    const o=info.options;o.challenge=pkB(o.challenge);
+    const cred=await navigator.credentials.get({publicKey:o});
+    await apiPost('/api/webauthn.php',{action:'login_verify',credential:{id:cred.id,rawId:pkU(cred.rawId),type:cred.type,response:{clientDataJSON:pkU(cred.response.clientDataJSON),authenticatorData:pkU(cred.response.authenticatorData),signature:pkU(cred.response.signature),userHandle:cred.response.userHandle?pkU(cred.response.userHandle):null}}});
+    agEnter();
+  }catch(e){
+    tdcAppLockScreen(e&&e.name==='NotAllowedError'?'Passkey prompt dismissed. Tap to try again.':(e&&e.message)||'Unlock with your saved passkey.');
+  }finally{tdcUnlocking=false;}
+}
+async function tdcAppSetup(){
+  const ok=await pkRegister(true);
+  if(ok){showToast('Face / Touch ID set up','success');tdcAppUnlock();}
+  else tdcAppLockScreen('Could not set up Face / Touch ID. Use your password or try again.');
+}
+window.tdcAppLock=tdcAppLock;
+
 </script>
 
 <div class="install-sheet" id="install-sheet">
@@ -3288,11 +3404,11 @@ function tmCheckout(){
     <h3 style="margin-top:14px">How to add app to Home screen?</h3>
     <div class="fake">Open the browser menu and tap Share.</div>
     <div class="fake"><b>＋ Add to Home Screen</b></div>
-    <p>Select “Add to Home Screen”, leave Open as Web App on, then tap Add. The icon opens tdctech.org with no Safari bar: splash, sign in, PIN, then this dashboard.</p>
+    <p>Select “Add to Home Screen”, leave Open as Web App on, then tap Add. The icon opens tdctech.org with no Safari bar: splash, passkey unlock, then this dashboard.</p>
     <button class="ag-blue" onclick="location.href='tdc-tech-dashboard.html?app=1'">Preview app mode</button>
   </div>
 </div>
 
-<script src="/assets/app.js?v=20261008-eur" defer></script><script src="/assets/dashboard-live.js?v=20261008-eur" defer></script><div class="adpulse-slot" data-zone="z_6b1916923680f7d9ea88" data-adpulse-format="floating" hidden></div><script async src="https://ads.novaspack.com/adpulse.js?v=20261005"></script><script src="/assets/support.js?v=20261006c" defer></script><script src="/assets/payments.js?v=20261008-eur" defer></script>
-<script src="/assets/customer-workspace.js?v=20261008-eur" defer></script></body>
+<script src="/assets/app.js?v=20261011-master" defer></script><script src="/assets/dashboard-live.js?v=20261011-master" defer></script><div class="adpulse-slot" data-zone="z_6b1916923680f7d9ea88" data-adpulse-format="floating" hidden></div><script async src="https://ads.novaspack.com/adpulse.js?v=20261005"></script><script src="/assets/support.js?v=20261011-master" defer></script><script src="/assets/payments.js?v=20261011-master" defer></script>
+<script src="/assets/customer-workspace.js?v=20261011-master" defer></script><script src="/assets/service-uploads.js?v=20261011-master" defer></script><script src="/assets/music-studio.js?v=20261017-music7" defer></script><script src="/assets/master-workspace.js?v=20261011-master" defer></script></body>
 </html>

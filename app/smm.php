@@ -108,7 +108,7 @@ function smm_submit_order(array $u,array $s,array $d): array {
         $db->prepare("INSERT INTO wallet_ledger(user_id,amount,kind,status,reference,note) VALUES(?,?,'debit','posted',?,?)")->execute([$u['id'],-$amount,'order:'.$oid,$s['name']]);
         $db->prepare('INSERT INTO smm_jobs(order_id,user_id,request_id,request_hash,provider_id,remote_service,payload) VALUES(?,?,?,?,?,?,?)')->execute([$oid,$u['id'],$request,$hash,$s['provider_id'],$s['remote_id'],json_encode($payload)]);
         $db->commit();audit('smm.order.queued',(int)$u['id'],['order_id'=>$oid]);
-        try{require_once __DIR__.'/notifications.php';queue_email($u['email'],'Order #'.$oid.' received · TDC Tech','Your '.$s['name'].' order is queued. EUR '.number_format($amount,2).' was deducted from your wallet. Sign in to follow delivery.',(int)$u['id']);}catch(Throwable $e){error_log('SMM notification queue unavailable');}
+        try{require_once __DIR__.'/notifications.php';queue_email($u['email'],'Order #'.$oid.' received · TDC Tech','Your '.$s['name'].' order is queued. EUR '.number_format($amount,2).' was deducted from your wallet. Sign in to follow delivery.',(int)$u['id']);$admin=tdc_admin_email();if($admin!=='')queue_email($admin,'[Admin] New order #'.$oid.' · '.$s['name'],"New order received\n\nOrder reference : #".$oid."\nCustomer        : ".$u['name'].' <'.$u['email'].">\nService         : ".$s['name']."\nAmount          : EUR ".number_format($amount,2)."\nStatus          : Pending\n\nhttps://tdctech.org/admin/\n",null);}catch(Throwable $e){error_log('SMM notification queue unavailable');}
         return ['ok'=>true,'order_id'=>$oid,'amount'=>$amount,'message'=>'Order queued for delivery.'];
     }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
 }
@@ -122,8 +122,12 @@ function smm_finish(int $oid,string $state,string $status,?int $remains=null,?st
         if($final && $status==='partial' && $remains!==null){$details=json_decode($o['details'],true);$qty=max(1,(int)($details['quantity']??1));$refund=floor((float)$o['amount']*min($qty,max(0,$remains))/$qty*100)/100;}
         if($refund>0)$db->prepare("INSERT IGNORE INTO wallet_ledger(user_id,amount,kind,status,reference,note) VALUES(?,?,'refund','posted',?,'SMM undelivered allocation refund')")->execute([$o['user_id'],$refund,'order:'.$oid]);
         $mapped=$status==='partial'?'completed':($final?$status:'processing');
+        $previous=(string)$o['status'];
         $db->prepare('UPDATE orders SET status=? WHERE id=?')->execute([$mapped,$oid]);
         $db->prepare('UPDATE smm_jobs SET state=?,provider_status=?,remains=?,start_count=?,last_checked_at=UTC_TIMESTAMP() WHERE order_id=?')->execute([$state,$status,$remains,$start,$oid]);$db->commit();
+        if($previous!==$mapped&&in_array($mapped,['processing','completed','cancelled','rejected'],true)){
+            try{require_once __DIR__.'/notifications.php';notify_order_status($oid,$mapped,$previous);}catch(Throwable $e){error_log('SMM order status notification failed: '.$e->getMessage());}
+        }
     }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
 }
 function smm_dispatch(array $j,?callable $api=null): void {
