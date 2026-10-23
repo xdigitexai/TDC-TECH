@@ -1,8 +1,11 @@
 'use strict';
 (function () {
-  const PAGE = document.body.dataset.service;
   const PAGES = ['social-ads', 'verification', 'account-mgmt', 'press', 'bots'];
-  if (!PAGES.includes(PAGE)) return;
+  const INITIAL_PAGE = document.body.dataset.service;
+  const DASHBOARD = document.body.dataset.page === 'dashboard';
+  if (!PAGES.includes(INITIAL_PAGE) && !DASHBOARD) return;
+  let PAGE = INITIAL_PAGE;
+  const initialized = new Set();
 
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -982,15 +985,44 @@
   }
 
   /* ───────────────────────── Bootstrap ───────────────────────── */
-  document.addEventListener('DOMContentLoaded', async () => {
-    const p = panel();
+  async function initPage(key) {
+    if (!PAGES.includes(key) || initialized.has(key)) return;
+    const p = document.getElementById('page-' + key);
     if (!p) return;
+    initialized.add(key);
+    PAGE = key;
+    if (key === 'social-ads') await initSocialAds(p);
+    else if (key === 'verification') await initVerification(p);
+    else if (key === 'account-mgmt') await initAccount(p);
+    else if (key === 'press') await initPress(p);
+    else if (key === 'bots') await initBots(p);
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
     try {
-      if (PAGE === 'social-ads') await initSocialAds(p);
-      else if (PAGE === 'verification') await initVerification(p);
-      else if (PAGE === 'account-mgmt') await initAccount(p);
-      else if (PAGE === 'press') await initPress(p);
-      else if (PAGE === 'bots') await initBots(p);
+      if (PAGES.includes(INITIAL_PAGE)) {
+        await initPage(INITIAL_PAGE);
+        return;
+      }
+      // The dashboard switches service panels client-side. Upgrade a panel the
+      // first time the user opens it instead of requiring a full page load.
+      if (DASHBOARD) {
+        const origNav = window.navTo, origSvc = window.navToSvc;
+        if (typeof origNav === 'function') {
+          window.navTo = function (page) {
+            const out = origNav.apply(this, arguments);
+            if (PAGES.includes(page)) setTimeout(() => initPage(page).catch((e) => toast(e.message, 'error')), 30);
+            return out;
+          };
+        }
+        if (typeof origSvc === 'function') {
+          window.navToSvc = function (svc) {
+            const out = origSvc.apply(this, arguments);
+            if (PAGES.includes(svc)) setTimeout(() => initPage(svc).catch((e) => toast(e.message, 'error')), 30);
+            return out;
+          };
+        }
+      }
     } catch (e) {
       toast(e.message || 'Unable to load this service page.', 'error');
     }
