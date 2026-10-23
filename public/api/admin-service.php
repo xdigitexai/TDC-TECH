@@ -9,7 +9,9 @@ if($_SERVER['REQUEST_METHOD']==='GET') {
   $q=$pdo->prepare("SELECT COALESCE(SUM(CASE WHEN kind='debit' THEN -amount WHEN kind='refund' THEN amount ELSE 0 END),0) FROM wallet_ledger WHERE status='posted' AND reference LIKE 'order:%' AND CAST(SUBSTRING(reference,7) AS UNSIGNED) IN (SELECT id FROM orders WHERE service_id IN (SELECT service_id FROM service_page_services WHERE page_slug=?))");$q->execute([$slug]);$stats['income']=(float)$q->fetchColumn();
   $q=$pdo->prepare("SELECT DATE(o.created_at) day,COUNT(*) orders_count,COALESCE(SUM(o.amount),0) value_total FROM orders o WHERE o.service_id IN (SELECT service_id FROM service_page_services WHERE page_slug=?) AND o.created_at>=UTC_DATE()-INTERVAL 29 DAY GROUP BY DATE(o.created_at) ORDER BY day");$q->execute([$slug]);$trend=$q->fetchAll();
   $q=$pdo->prepare('SELECT o.id,o.user_id,u.name customer,u.email,s.name service,s.slug service_slug,o.description,o.details,o.admin_note,o.amount,o.status,o.delivery_stage,o.created_at,o.updated_at FROM orders o JOIN users u ON u.id=o.user_id JOIN services s ON s.id=o.service_id WHERE o.service_id IN (SELECT service_id FROM service_page_services WHERE page_slug=?) ORDER BY o.id DESC LIMIT 250');$q->execute([$slug]);$orders=$q->fetchAll();foreach($orders as &$o){$mediaQuery=$pdo->prepare('SELECT id,original_name,kind FROM customer_media WHERE order_id=?');$mediaQuery->execute([$o['id']]);$o['media']=$mediaQuery->fetchAll();$o['admin_note']=decrypt_private_note($o['admin_note']);}unset($o);
-  json_out(['page'=>$page,'stats'=>$stats,'trend'=>$trend,'services'=>$services,'orders'=>$orders,'csrf'=>csrf_token()]);
+  $adRates=[];
+  if($slug==='social-ads'){$adRates=$pdo->query('SELECT id,category,placement,price_per_day,reach_per_eur,active FROM ad_rates ORDER BY category,placement')->fetchAll();}
+  json_out(['page'=>$page,'stats'=>$stats,'trend'=>$trend,'services'=>$services,'orders'=>$orders,'ad_rates'=>$adRates,'csrf'=>csrf_token()]);
 }
 require_method('POST');require_csrf();$d=json_body();$slug=preg_replace('/[^a-z0-9-]/','',(string)($d['slug']??''));
 if(($d['action']??'')==='page_update'){
@@ -51,5 +53,14 @@ if(($d['action']??'')==='service_update'){ $id=(int)($d['id']??0);$price=round((
  if($price<0||$price>100000)json_out(['error'=>'Price must be between €0 and €100,000.'],422);
  $q=$pdo->prepare('UPDATE services SET price=?,active=? WHERE id=? AND id IN (SELECT service_id FROM service_page_services WHERE page_slug=?)');$q->execute([$price,$active?1:0,$id,$slug]);if(!$q->rowCount()){$q=$pdo->prepare('SELECT id FROM services WHERE id=? AND id IN (SELECT service_id FROM service_page_services WHERE page_slug=?)');$q->execute([$id,$slug]);if(!$q->fetch())json_out(['error'=>'Catalog item does not belong to this page.'],404);}
  audit('service.price_updated',(int)$admin['id'],['service_slug'=>$slug,'service_id'=>$id,'price'=>$price,'active'=>$active]);json_out(['ok'=>true]);
+}
+if(($d['action']??'')==='ad_rate_update'){
+ if($slug!=='social-ads')json_out(['error'=>'Ad rates are only available on the Social Media Ads page.'],404);
+ $id=(int)($d['id']??0);$price=round((float)($d['price_per_day']??-1),2);$reach=(int)($d['reach_per_eur']??-1);$active=($d['active']??false)===true;
+ if($price<0||$price>10000)json_out(['error'=>'Daily rate must be between €0 and €10,000.'],422);
+ if($reach<0||$reach>1000000)json_out(['error'=>'Estimated reach must be between 0 and 1,000,000 per euro.'],422);
+ $q=$pdo->prepare('UPDATE ad_rates SET price_per_day=?,reach_per_eur=?,active=? WHERE id=?');$q->execute([$price,$reach,$active?1:0,$id]);
+ if(!$q->rowCount()){$q=$pdo->prepare('SELECT id FROM ad_rates WHERE id=?');$q->execute([$id]);if(!$q->fetch())json_out(['error'=>'Ad rate not found.'],404);}
+ audit('ad_rate.updated',(int)$admin['id'],['rate_id'=>$id,'price_per_day'=>$price,'reach_per_eur'=>$reach,'active'=>$active]);json_out(['ok'=>true]);
 }
 json_out(['error'=>'Unknown action.'],400);
