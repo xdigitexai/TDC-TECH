@@ -8,15 +8,19 @@ if($_SERVER['REQUEST_METHOD']==='GET') {
     'orders'=>(int)$pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn(),
     'pending_orders'=>(int)$pdo->query("SELECT COUNT(*) FROM orders WHERE status='pending'")->fetchColumn(),
     'pending_topups'=>(int)$pdo->query("SELECT COUNT(*) FROM topup_payments WHERE status IN ('initiated','pending','processing')")->fetchColumn(),
-    'revenue'=>(float)$pdo->query("SELECT COALESCE(SUM(-amount),0) FROM wallet_ledger WHERE kind='debit' AND status='posted'")->fetchColumn()
+    'revenue'=>(float)$pdo->query("SELECT COALESCE(SUM(-amount),0) FROM wallet_ledger WHERE kind='debit' AND status='posted'")->fetchColumn(),
+    'ledger_posted'=>(int)$pdo->query("SELECT COUNT(*) FROM wallet_ledger WHERE status='posted'")->fetchColumn(),
+    'platform_balance'=>(float)$pdo->query("SELECT COALESCE(SUM(CASE WHEN status='posted' THEN amount ELSE 0 END),0) FROM wallet_ledger")->fetchColumn()
   ];
   $users=$pdo->query("SELECT u.id,u.name,u.email,u.status,u.created_at,COALESCE(SUM(CASE WHEN l.status='posted' THEN l.amount ELSE 0 END),0) balance FROM users u LEFT JOIN wallet_ledger l ON l.user_id=u.id WHERE u.role='customer' GROUP BY u.id ORDER BY u.id DESC LIMIT 200")->fetchAll();
   $orders=$pdo->query('SELECT o.id,o.user_id,u.name customer,u.email,s.name service,s.slug service_slug,(SELECT ps.page_slug FROM service_page_services ps WHERE ps.service_id=s.id ORDER BY ps.page_slug LIMIT 1) admin_page_slug,o.description,o.details,o.admin_note,o.amount,o.status,o.created_at FROM orders o JOIN users u ON u.id=o.user_id JOIN services s ON s.id=o.service_id ORDER BY o.id DESC LIMIT 200')->fetchAll();
-  foreach($orders as &$order){$order['admin_note']=decrypt_private_note($order['admin_note']);$q=$pdo->prepare('SELECT id,original_name,kind FROM customer_media WHERE order_id=?');$q->execute([$order['id']]);$order['media']=$q->fetchAll();} unset($order);
+  foreach($orders as &$order){$order['admin_note']=decrypt_private_note($order['admin_note']);$q=$pdo->prepare('SELECT id,original_name,kind,mime,bytes FROM customer_media WHERE order_id=?');$q->execute([$order['id']]);$order['media']=$q->fetchAll();} unset($order);
   $topups=$pdo->query("SELECT p.local_reference,p.provider_reference,p.requested_gbp amount,p.provider_amount,p.currency,p.gateway,p.status,p.created_at,u.name customer,u.email FROM topup_payments p JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 200")->fetchAll();
   $fx=$pdo->query('SELECT currency,units_per_eur,active,updated_at FROM gateway_fx_rates ORDER BY currency')->fetchAll();
   $services=$pdo->query('SELECT id,slug,name,price,pricing_mode,active FROM services ORDER BY id')->fetchAll();
-  json_out(['stats'=>$stats,'users'=>$users,'orders'=>$orders,'topups'=>$topups,'fx'=>$fx,'services'=>$services,'csrf'=>csrf_token(),'admin'=>$admin]);
+  $ledger=$pdo->query("SELECT l.id,l.user_id,u.name client,u.email,l.amount,l.kind,l.status,l.reference,l.note,l.created_at FROM wallet_ledger l LEFT JOIN users u ON u.id=l.user_id ORDER BY l.id DESC LIMIT 200")->fetchAll();
+  $rates=$pdo->query('SELECT id,category,placement,price_per_day,reach_per_eur,active,updated_at FROM ad_rates ORDER BY category,placement')->fetchAll();
+  json_out(['stats'=>$stats,'users'=>$users,'orders'=>$orders,'topups'=>$topups,'fx'=>$fx,'services'=>$services,'ledger'=>$ledger,'rates'=>$rates,'csrf'=>csrf_token(),'admin'=>$admin]);
 }
 require_method('POST'); require_csrf(); $d=json_body(); $act=(string)($d['action']??''); $pdo=db();
 if($act==='fx_update') {
@@ -48,11 +52,53 @@ if($act==='order_status') {
   if($status!==$o['status'])try{require_once dirname(__DIR__,2).'/app/notifications.php';notify_order_status($id,$status,(string)$o['status']);}catch(Throwable $e){error_log('Order status email could not be queued: '.$e->getMessage());}
   json_out(['ok'=>true]);
 }
+if($act==='order_metrics') {
+  $id=(int)($d['id']??0);
+  $imp=array_key_exists('impressions',$d)?max(0,(int)$d['impressions']):null;
+  $vw=array_key_exists('views',$d)?max(0,(int)$d['views']):null;
+  if($imp===null&&$vw===null)json_out(['error'=>'No metrics supplied.'],422);
+  $q=$pdo->prepare('SELECT id,details FROM orders WHERE id=?');$q->execute([$id]);$o=$q->fetch();if(!$o)json_out(['error'=>'Order not found.'],404);
+  $det=$o['details']?json_decode($o['details'],true):[];if(!is_array($det))$det=[];
+  if($imp!==null)$det['impressions']=$imp;
+  if($vw!==null)$det['views']=$vw;
+  $pdo->prepare('UPDATE orders SET details=?,updated_at=UTC_TIMESTAMP() WHERE id=?')->execute([json_encode($det),$id]);
+  audit('order.metrics_updated',(int)$admin['id'],['order_id'=>$id,'impressions'=>$imp,'views'=>$vw]);
+  json_out(['ok'=>true,'details'=>$det]);
+}
 if($act==='service_update') {
   $id=(int)($d['id']??0);$price=round((float)($d['price']??-1),2);$active=($d['active']??false)===true;
   if($price<0 || $price>100000)json_out(['error'=>'Price must be from €0 to €100,000.'],422);
   $exists=$pdo->prepare('SELECT id FROM services WHERE id=?');$exists->execute([$id]);if(!$exists->fetch())json_out(['error'=>'Service was not found.'],404);$q=$pdo->prepare('UPDATE services SET price=?,active=? WHERE id=?');$q->execute([$price,$active?1:0,$id]);
   audit('service.updated',(int)$admin['id'],['service_id'=>$id,'price'=>$price,'active'=>$active]);json_out(['ok'=>true]);
+}
+if($act==='ledger_status') {
+  $id=(int)($d['id']??0);$status=(string)($d['status']??'');
+  if(!in_array($status,['posted','pending','reversed'],true))json_out(['error'=>'Invalid ledger status.'],422);
+  $q=$pdo->prepare('UPDATE wallet_ledger SET status=? WHERE id=?');$q->execute([$status,$id]);
+  if(!$q->rowCount())json_out(['error'=>'Ledger entry not found or unchanged.'],404);
+  audit('ledger.status_changed',(int)$admin['id'],['ledger_id'=>$id,'status'=>$status]);json_out(['ok'=>true]);
+}
+if($act==='ledger_reverse') {
+  $id=(int)($d['id']??0);
+  $q=$pdo->prepare('SELECT * FROM wallet_ledger WHERE id=?');$q->execute([$id]);$row=$q->fetch();
+  if(!$row)json_out(['error'=>'Ledger entry not found.'],404);
+  if($row['status']==='reversed')json_out(['error'=>'That entry is already reversed.'],409);
+  if($row['kind']==='refund')json_out(['error'=>'Refund entries cannot be reversed.'],409);
+  $amount=(float)$row['amount'];
+  if($amount==0.0)json_out(['error'=>'Nothing to refund on that entry.'],422);
+  $pdo->beginTransaction();
+  $pdo->prepare("UPDATE wallet_ledger SET status='reversed' WHERE id=?")->execute([$id]);
+  $pdo->prepare("INSERT INTO wallet_ledger(user_id,amount,kind,status,reference,note,created_by,created_at) VALUES(?,?,'refund','posted',?,?,?,UTC_TIMESTAMP())")
+     ->execute([(int)$row['user_id'],-$amount,'reversal:'.($row['reference']?:$id),'Reversal of ledger #'.$id,(int)$admin['id']]);
+  $pdo->commit();
+  audit('ledger.reversed',(int)$admin['id'],['ledger_id'=>$id,'amount'=>-$amount]);json_out(['ok'=>true]);
+}
+if($act==='rate_update') {
+  $id=(int)($d['id']??0);$price=round((float)($d['price_per_day']??-1),2);$reach=(int)($d['reach_per_eur']??-1);$active=($d['active']??false)===true;
+  if($price<0||$price>100000||$reach<0||$reach>100000000)json_out(['error'=>'Enter a valid rate.'],422);
+  $q=$pdo->prepare('UPDATE ad_rates SET price_per_day=?,reach_per_eur=?,active=?,updated_at=UTC_TIMESTAMP() WHERE id=?');$q->execute([$price,$reach,$active?1:0,$id]);
+  if(!$q->rowCount())json_out(['error'=>'Ad rate not found or unchanged.'],404);
+  audit('ad_rate.updated',(int)$admin['id'],['rate_id'=>$id,'price'=>$price,'reach'=>$reach,'active'=>$active]);json_out(['ok'=>true]);
 }
 if($act==='user_status') {
   $id=(int)($d['id']??0);$status=(string)($d['status']??'');if(!in_array($status,['active','suspended'],true))json_out(['error'=>'Invalid status.'],422);
