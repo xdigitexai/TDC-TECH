@@ -119,7 +119,7 @@
   }
 
   window.openOrderInspector = function (id) {
-    var orders = (window.adminData && window.adminData.orders) || [];
+    var orders = ((typeof adminData !== 'undefined' && adminData.orders)) || [];
     var o = orders.filter(function (x) { return String(x.id) === String(id); })[0];
     var modal = ensureModal();
     var card = document.getElementById('order-inspector-card');
@@ -145,13 +145,17 @@
 
     var sum = e('div');
     sum.style.cssText = 'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0';
-    var cells = [['Amount', window.money(o.amount)], ['Status', null], ['Submitted', String(o.created_at || 'n/a')]];
+    var cells = [['Amount', money(o.amount)], ['Status', null], ['Submitted', String(o.created_at || 'n/a')]];
     cells.forEach(function (p, i) {
       var cell = e('div');
       cell.style.cssText = 'padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.02)';
       cell.appendChild(e('div', 'kpi-lbl', p[0]));
-      if (i === 1 && window.status) cell.appendChild(window.status(o.status));
-      else cell.appendChild(e('strong', null, p[1]));
+      if (i === 1) {
+        var cls = { processing: 'review', completed: 'done', pending: 'pending', rejected: 'rejected', cancelled: 'cancelled' }[o.status] || '';
+        cell.appendChild(e('span', 'status' + (cls ? ' ' + cls : ''), o.status));
+      } else {
+        cell.appendChild(e('strong', null, p[1]));
+      }
       sum.appendChild(cell);
     });
     card.appendChild(sum);
@@ -239,7 +243,7 @@
       var saveM = e('button', 'btn small primary', 'Save metrics');
       saveM.type = 'button';
       saveM.onclick = function () {
-        window.run('order_metrics', {
+        run('order_metrics', {
           id: o.id,
           impressions: document.getElementById('insp-impressions').value,
           views: document.getElementById('insp-views').value
@@ -261,7 +265,7 @@
     var saveN = e('button', 'btn small', 'Save note');
     saveN.type = 'button';
     saveN.onclick = function () {
-      window.run('order_note', { id: o.id, note: document.getElementById('insp-note').value }, 'Order note updated.');
+      run('order_note', { id: o.id, note: document.getElementById('insp-note').value }, 'Order note updated.');
     };
     var nrow = e('div', 'actions');
     nrow.style.marginTop = '9px';
@@ -278,7 +282,7 @@
     }
     function transition(target, msg) {
       return function () {
-        window.run('order_status', { id: o.id, status: target }, msg);
+        run('order_status', { id: o.id, status: target }, msg);
         window.closeOrderInspector();
       };
     }
@@ -287,7 +291,7 @@
     act('Reject · refund', 'danger', transition('rejected', 'Order rejected and refunded.'));
     act('Cancel · refund', 'danger', transition('cancelled', 'Order cancelled and refunded.'));
     act('Invoice', '', function () {
-      window.makeInvoice(String(o.id), o.customer || 'Client', o.service || 'Service', Number(o.amount || 0));
+      makeInvoice(String(o.id), o.customer || 'Client', o.service || 'Service', Number(o.amount || 0));
     });
     card.appendChild(acts);
 
