@@ -25,5 +25,25 @@ try{
  }else{$pdo->rollBack();json_out(['error'=>'Unknown action.'],400);}
  $pdo->prepare('INSERT INTO support_messages(ticket_id,user_id,body) VALUES(?,?,?)')->execute([$id,$u['id'],$body]);
  $messageId=(int)$pdo->lastInsertId();$media=$d['media_ids']??[];if(!is_array($media)||count($media)>5){$pdo->rollBack();json_out(['error'=>'Attach up to five screenshots.'],422);}foreach(array_unique($media) as $mid){if(!is_string($mid)){ $pdo->rollBack();json_out(['error'=>'Invalid attachment.'],422);}$q=$pdo->prepare("SELECT id FROM customer_media WHERE id=? AND user_id=? AND mime IN ('image/jpeg','image/png','image/webp') AND order_id IS NULL AND NOT EXISTS(SELECT 1 FROM ticket_media WHERE media_id=?) FOR UPDATE");$q->execute([$mid,$u['id'],$mid]);if(!$q->fetch()){$pdo->rollBack();json_out(['error'=>'Select your unattached JPG, PNG or WebP screenshots.'],422);}$pdo->prepare('INSERT INTO ticket_media(message_id,media_id) VALUES(?,?)')->execute([$messageId,$mid]);}
- $pdo->prepare('UPDATE support_tickets SET status=?,updated_at=UTC_TIMESTAMP() WHERE id=?')->execute([$admin?'answered':'open',$id]);$pdo->commit();audit('support.message_sent',(int)$u['id'],['ticket_id'=>$id]);json_out(['ok'=>true,'id'=>$id]);
+ $pdo->prepare('UPDATE support_tickets SET status=?,updated_at=UTC_TIMESTAMP() WHERE id=?')->execute([$admin?'answered':'open',$id]);$pdo->commit();audit('support.message_sent',(int)$u['id'],['ticket_id'=>$id]);
+ if($admin){
+  try{
+   require_once dirname(__DIR__,2).'/app/notifications.php';
+   $eq=db()->prepare('SELECT name,email FROM users WHERE id=?');$eq->execute([(int)$t['user_id']]);$owner=$eq->fetch();
+   if($owner&&filter_var((string)$owner['email'],FILTER_VALIDATE_EMAIL)){
+    $subject='Support reply · ticket #'.$id;
+    $mail="Hello ".$owner['name'].",
+
+Our team replied to your support ticket #".$id.($t['subject']?' ('.strip_tags((string)$t['subject']).')':'').":
+
+".strip_tags((string)$body)."
+
+Open your dashboard to read the full conversation and reply.
+";
+    queue_email((string)$owner['email'],$subject,$mail,(int)$t['user_id']);
+    audit('support.reply_emailed',(int)$u['id'],['ticket_id'=>$id,'to'=>$owner['email']]);
+   }
+  }catch(Throwable $e){error_log('Ticket reply email failed: '.$e->getMessage());}
+ }
+ json_out(['ok'=>true,'id'=>$id]);
 }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
